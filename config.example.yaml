@@ -1,0 +1,66 @@
+# 公众号文章同步插件示例配置
+# 复制为 config.yaml 后按需修改。
+# 说明:
+#   - 注入模式(微信内点按钮同步):只需 output_dir,无需 credentials
+#   - 命令行批量模式(sync/watch):使用下面的 articles/accounts
+
+# 归档根目录
+output_dir: ./articles
+
+# MITM 代理端口(默认 2023)
+proxy_port: 2023
+
+# 本地管理服务端口(默认 8080)
+admin_port: 8080
+
+# watch 模式定时间隔(如 15m / 30m / 1h)
+interval: 30m
+
+# 并发抓取的文章数,建议 1-5,避免触发微信限流
+concurrency: 3
+
+# 单个 HTTP 请求超时秒数
+timeout_sec: 25
+
+# ---------------------------------------------------------------------------
+# 可选:把同步的文章推送到外部 bot/内容服务
+# 同步(点按钮或手动同步)后,会 POST 到 {api_base}/api/bot/sync/articles:
+#   { "botId": bot_id, "name": 标题, "content": Markdown正文, "type": article,
+#     "coverImageUrl": 封面图URL }
+# ---------------------------------------------------------------------------
+bot_sync:
+  enabled: false          # 开启后每次同步都会推送
+  api_base: http://localhost:7000   # bot 服务地址(必填)
+  bot_id: ""              # 必填,你的 botId
+  type: article           # 可选,默认 article
+  # 可选:图床上传接口。若填写,正文图片会先上传(Multipart: file),
+  # Markdown 里替换成图床返回的 data.url,封面取第一张上传后的 URL。
+  # 留空则直接使用微信原图 URL。
+  # 插件专用接口无需鉴权、MD5 由服务端计算:
+  upload_api: /api/bot/sync/images   # 你的插件图床上传接口路径
+  upload_field: file      # multipart 文件字段名,默认 file
+  cookie: ""              # 可选:若上传接口需要登录 Cookie 才填(本插件接口不需要)
+  timeout_sec: 30
+# 自定义图床域名(可选,环境变量):
+#   运行时设置 UPLOAD_R2_DOMAIN=https://i.routerpark.com 后,上传接口返回的
+#   图片 URL 若为相对路径(/xxx)会补全该域名;若主机是默认 r2.dev 则替换为该域名。
+
+# ---------------------------------------------------------------------------
+# 方式一:直接指定文章 URL(无需任何凭证,推荐先用这种方式验证)
+# ---------------------------------------------------------------------------
+articles:
+  - https://mp.weixin.qq.com/s/xxxxx
+
+# ---------------------------------------------------------------------------
+# 方式二:配置公众号账号凭证,通过 getmsg 接口自动拉取文章列表。
+# 凭证(uin/key/pass_ticket/appmsg_token)会过期,需要在微信 PC 端抓包获取。
+# ---------------------------------------------------------------------------
+accounts:
+  - name: 示例公众号
+    biz: MzAx000000000
+    uin: "1234567890"
+    key: "abcdefghijklmn_过期请更新"
+    pass_ticket: "xyz_过期请更新"
+    appmsg_token: "token_过期请更新"
+    author_id: "author_xxx"      # 可选,用于 author 页列表
+    max_articles: 50             # 可选,每次最多同步条数,0 表示不限

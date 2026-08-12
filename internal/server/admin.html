@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>公众号文章同步</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; margin: 0; background: #f5f6f8; color: #333; }
+  header { background: #07c160; color: #fff; padding: 14px 20px; }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  header .sub { font-size: 12px; opacity: .85; margin-top: 4px; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 16px; }
+  .card { background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h2 { margin: 0 0 12px; font-size: 15px; color: #444; }
+  .status-row { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 13px; color: #555; }
+  .status-row b { color: #333; }
+  .sync-form { display: flex; gap: 8px; }
+  .sync-form input { flex: 1; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+  .btn { background: #07c160; color: #fff; border: 0; border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer; }
+  .btn:hover { opacity: .9; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
+  th { color: #888; font-weight: 500; white-space: nowrap; }
+  td a { color: #07c160; text-decoration: none; }
+  td a:hover { text-decoration: underline; }
+  .empty { color: #999; text-align: center; padding: 24px 0; }
+  .msg { margin-top: 10px; font-size: 13px; }
+  .msg.ok { color: #07c160; }
+  .msg.err { color: #f5222d; }
+  pre.log { background: #1e1e1e; color: #d4d4d4; border-radius: 6px; padding: 12px; font-size: 12px; max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+  .log-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .log-toolbar span { font-size: 12px; color: #999; }
+</style>
+</head>
+<body>
+<header>
+  <h1>公众号文章同步插件</h1>
+  <div class="sub" id="status-line">加载中…</div>
+</header>
+<div class="wrap">
+
+  <div class="card">
+    <h2>运行状态</h2>
+    <div class="status-row" id="status-detail"></div>
+  </div>
+
+  <div class="card">
+    <h2>手动同步</h2>
+    <div class="sync-form">
+      <input id="sync-url" type="text" placeholder="粘贴 mp.weixin.qq.com/s/... 文章链接,点击同步">
+      <button class="btn" id="sync-btn">同步</button>
+    </div>
+    <div class="msg" id="sync-msg"></div>
+  </div>
+
+  <div class="card">
+    <h2>已同步文章(<span id="count">0</span>)</h2>
+    <table>
+      <thead><tr><th>标题</th><th>公众号</th><th>发布时间</th><th>同步时间</th></tr></thead>
+      <tbody id="list-body"><tr><td colspan="4" class="empty">加载中…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="log-toolbar">
+      <h2 style="margin:0">运行日志</h2>
+      <span id="log-hint"></span>
+    </div>
+    <pre class="log" id="log-box"></pre>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var listTimer = null;
+
+  function el(id) { return document.getElementById(id); }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function loadStatus() {
+    fetch('/api/status').then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) { return; }
+      var st = res.status || {};
+      el('status-line').textContent =
+        'v' + (st.version || '?') + ' · 代理 ' + (st.proxy_addr || '-') +
+        ' · 管理页 ' + (st.admin_addr || '-');
+      el('status-detail').innerHTML =
+        '<div>输出目录: <b>' + esc(st.output_dir || '-') + '</b></div>' +
+        '<div>代理地址: <b>' + esc(st.proxy_addr || '-') + '</b></div>' +
+        '<div>系统代理: <b>' + esc(st.system_proxy || '未设置') + '</b></div>' +
+        '<div>证书: <b>' + esc(st.cert_name || '-') + '</b></div>';
+    }).catch(function () {
+      el('status-line').textContent = '无法连接管理服务';
+    });
+  }
+
+  function loadList() {
+    fetch('/api/list').then(function (r) { return r.json(); }).then(function (res) {
+      var tbody = el('list-body');
+      if (!res.ok || !res.list || res.list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty">还没有同步任何文章。在微信里打开公众号文章,点右下角"⬇ 同步"。</td></tr>';
+        el('count').textContent = '0';
+        return;
+      }
+      el('count').textContent = res.list.length;
+      var html = '';
+      res.list.forEach(function (a) {
+        var href = '/articles/' + esc(a.dir) + '/' + esc(a.html || 'index.html');
+        html += '<tr>' +
+          '<td><a href="' + href + '" target="_blank">' + esc(a.title || '(无标题)') + '</a></td>' +
+          '<td>' + esc(a.author || '-') + '</td>' +
+          '<td>' + esc(a.publish_time || '-') + '</td>' +
+          '<td>' + esc(a.synced_at || '-') + '</td></tr>';
+      });
+      tbody.innerHTML = html;
+    }).catch(function () {});
+  }
+
+  function loadLogs() {
+    fetch('/api/logs').then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) { return; }
+      el('log-box').textContent = res.logs || '';
+      el('log-hint').textContent = '(最近 ' + Math.round((res.logs || '').length / 1024) + ' KB)';
+      var box = el('log-box');
+      box.scrollTop = box.scrollHeight;
+    }).catch(function () {});
+  }
+
+  function startPolling() {
+    loadStatus(); loadList(); loadLogs();
+    if (listTimer) { clearInterval(listTimer); }
+    listTimer = setInterval(function () {
+      loadList();
+      loadLogs();
+    }, 2000);
+  }
+
+  el('sync-btn').addEventListener('click', function () {
+    var url = el('sync-url').value.trim();
+    var msg = el('sync-msg');
+    if (!url) { msg.className = 'msg err'; msg.textContent = '请输入文章链接'; return; }
+    var btn = el('sync-btn');
+    btn.disabled = true;
+    msg.className = 'msg'; msg.textContent = '同步中…';
+    fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res.ok) {
+        msg.className = 'msg ok';
+        msg.textContent = res.duplicate ? '✓ 该文章已同步过' : '✓ 已保存到 ' + (res.dir || '');
+      } else {
+        msg.className = 'msg err';
+        msg.textContent = '✗ ' + (res.error || '同步失败');
+      }
+      setTimeout(loadList, 500);
+    }).catch(function () {
+      msg.className = 'msg err';
+      msg.textContent = '✗ 请求失败';
+    }).then(function () {
+      btn.disabled = false;
+    });
+  });
+
+  el('sync-url').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { el('sync-btn').click(); }
+  });
+
+  startPolling();
+})();
+</script>
+</body>
+</html>
