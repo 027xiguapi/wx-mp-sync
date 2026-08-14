@@ -58,6 +58,10 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
+	// 禁用 cobra 的「mousetrap」:否则在 Windows 上双击快捷方式启动时,
+	// cobra 会提示 "This is a command line tool" 并直接退出。
+	cobra.MousetrapHelpText = ""
+
 	rootCmd.PersistentFlags().StringVarP(&configFilepath, "config", "c", "", "配置文件路径(默认 ./config.yaml)")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "开启调试日志")
 

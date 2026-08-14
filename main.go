@@ -27,6 +27,9 @@ func main() {
 	cfg.App.LogPath = logPath
 	if err := cmd.Execute(cfg); err != nil {
 		fmt.Printf("Failed to run: %v\n", err.Error())
+		// 双击快捷方式启动时,出错窗口会一闪而过;等待回车以便看清错误信息。
+		fmt.Println("\n按回车键退出...")
+		_, _ = fmt.Scanln()
 	}
 }
 
