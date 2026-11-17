@@ -36,8 +36,8 @@ type Config struct {
 // SyncResult 描述一次 bot 推送的结果。
 type SyncResult struct {
 	OK      bool   `json:"ok"`
-	Upload  bool   `json:"upload,omitempty"`  // 是否尝试了图片上传
-	Message string `json:"error,omitempty"`   // 失败原因
+	Upload  bool   `json:"upload,omitempty"` // 是否尝试了图片上传
+	Message string `json:"error,omitempty"`  // 失败原因
 }
 
 // Syncer 负责把文章推送到 bot 服务。

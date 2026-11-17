@@ -28,11 +28,11 @@ type Failure struct {
 
 // Result 是单次同步的统计结果。
 type Result struct {
-	Total   int       `json:"total"`
-	Synced  int       `json:"synced"`
-	Skipped int       `json:"skipped"`
-	Failed  int       `json:"failed"`
-	Paths   []string  `json:"paths"`
+	Total    int       `json:"total"`
+	Synced   int       `json:"synced"`
+	Skipped  int       `json:"skipped"`
+	Failed   int       `json:"failed"`
+	Paths    []string  `json:"paths"`
 	Failures []Failure `json:"failures"`
 }
 

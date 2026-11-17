@@ -84,6 +84,9 @@ func (c *OfficialAccountDownload) FetchArticle(url string) (*WechatOfficialArtic
 		if fallbackErr != nil {
 			return nil, err
 		}
+		if isEmptyArticle(article) {
+			return nil, fmt.Errorf("未能解析文章内容(可能需要在微信中打开,或链接已失效): %s", url)
+		}
 		c.article = article
 		return article, nil
 	}
@@ -91,10 +94,25 @@ func (c *OfficialAccountDownload) FetchArticle(url string) (*WechatOfficialArtic
 		publishTimeStr = formatPublishTime(data.CreateTime, int(data.OriCreateTime))
 	}
 	article := newWechatOfficialArticle(data, publishTimeStr)
+	if isEmptyArticle(article) {
+		return nil, fmt.Errorf("未能解析文章内容(可能需要在微信中打开,或链接已失效): %s", url)
+	}
 	article.PageJSON = data
 	article.PageHTML = contentStr
 	c.article = article
 	return article, nil
+}
+
+// isEmptyArticle 判断解析结果是否为"空文章"(标题、正文、图片全部缺失)。
+// 常见于微信的验证页、参数错误页或已删除文章。
+func isEmptyArticle(article *WechatOfficialArticle) bool {
+	if article == nil {
+		return true
+	}
+	if strings.TrimSpace(article.Title) != "" || strings.TrimSpace(article.Content) != "" {
+		return false
+	}
+	return len(article.Images) == 0 && len(article.PicturePageInfoList) == 0
 }
 
 // newWechatOfficialArticle 由 CgiDataNew 构建统一文章结构。

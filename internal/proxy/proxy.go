@@ -3,10 +3,13 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/ltaoo/echo"
@@ -22,10 +25,12 @@ type Proxy struct {
 }
 
 // NewProxy 创建代理实例。adminBase 是管理服务地址,用于状态页跳转。
-func NewProxy(rootCA *RootCA, adminBase string) (*Proxy, error) {
+// upstream 是可选的上级代理(如 Clash),用于访问直连不通的站点。
+func NewProxy(rootCA *RootCA, adminBase, upstream string) (*Proxy, error) {
 	e, err := echo.NewEchoWithOptions(rootCA.Cert, rootCA.PrivateKey, &echo.Options{
 		EnableBuiltinBypass:  false,
 		InterceptOnlyMatched: true,
+		UpstreamProxy:        upstream,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("初始化 MITM 代理失败: %w", err)
@@ -43,19 +48,55 @@ func (p *Proxy) AddPlugin(plugin *echo.Plugin) {
 }
 
 // Start 在指定端口启动代理服务。
+// 绑定 127.0.0.1 而不是 0.0.0.0:Windows 上通配绑定会与其它进程的
+// 127.0.0.1:同端口监听共存,导致本机连接被更具体的监听抢走。
+// 端口被占用时自动向后尝试,避免因端口冲突静默失效。
 func (p *Proxy) Start(port int) error {
-	p.port = port
-	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
-	if err != nil {
-		return fmt.Errorf("代理端口 %d 被占用: %w", port, err)
-	}
-	p.server = &http.Server{Handler: p.handler}
-	go func() {
-		if err := p.server.Serve(l); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("代理服务错误: %v\n", err)
+	const maxTries = 20
+	var lastErr error
+	for i := 0; i < maxTries; i++ {
+		candidate := port + i
+		if candidate > 65535 {
+			break
 		}
-	}()
-	return nil
+		l, err := net.Listen("tcp4", fmt.Sprintf("127.0.0.1:%d", candidate))
+		if err == nil {
+			p.port = candidate
+			p.server = &http.Server{Handler: p.handler}
+			go func() {
+				if err := p.server.Serve(l); err != nil && err != http.ErrServerClosed {
+					fmt.Printf("代理服务错误: %v\n", err)
+				}
+			}()
+			if candidate != port {
+				fmt.Printf("⚠️ 代理端口 %d 已被占用,已自动改用 %d(系统代理也会指向该端口)\n", port, candidate)
+			}
+			return nil
+		}
+		lastErr = err
+		if !isPortInUse(err) {
+			return fmt.Errorf("代理端口 %d 监听失败: %w", candidate, err)
+		}
+	}
+	return fmt.Errorf("代理端口 %d-%d 均被占用,请用 --proxy-port 指定其他端口: %w", port, port+maxTries-1, lastErr)
+}
+
+// isPortInUse 判断监听错误是否由端口占用引起。
+func isPortInUse(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, syscall.EADDRINUSE) {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "address already in use") ||
+		strings.Contains(msg, "only one usage of each socket address")
+}
+
+// Port 返回代理实际监听端口(可能因端口占用与传入值不同)。
+func (p *Proxy) Port() int {
+	return p.port
 }
 
 // Addr 返回代理地址(host:port)。

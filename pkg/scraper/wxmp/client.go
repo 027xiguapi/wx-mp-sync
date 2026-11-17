@@ -24,6 +24,9 @@ type OfficialAccount struct {
 	AppmsgToken string
 	AuthorID    string
 	MaxArticles int
+	// Cookie 是微信客户端的会话 Cookie(可选)。新版 getmsg 只带 URL 参数
+	// 可能返回 "no session",带上客户端 Cookie 成功率更高。
+	Cookie string
 }
 
 // OfficialMsgListResp 对应 getmsg 接口的返回结构。
@@ -77,9 +80,11 @@ type OfficialAccountMsgListRespItem struct {
 
 // AccountClient 通过 getmsg 接口拉取公众号的文章列表。
 type AccountClient struct {
-	logger  *zerolog.Logger
-	Timeout time.Duration
+	logger   *zerolog.Logger
+	Timeout  time.Duration
 	MaxPages int
+	// BaseURL 是接口根地址,默认 https://mp.weixin.qq.com(测试可替换)。
+	BaseURL string
 }
 
 // NewAccountClient 创建账号列表客户端。
@@ -88,12 +93,22 @@ func NewAccountClient(logger *zerolog.Logger) *AccountClient {
 		logger:   logger,
 		Timeout:  15 * time.Second,
 		MaxPages: 20,
+		BaseURL:  "https://mp.weixin.qq.com",
 	}
+}
+
+// baseURL 返回接口根地址(去掉末尾斜杠)。
+func (c *AccountClient) baseURL() string {
+	base := strings.TrimRight(strings.TrimSpace(c.BaseURL), "/")
+	if base == "" {
+		return "https://mp.weixin.qq.com"
+	}
+	return base
 }
 
 // BuildMsgListURL 构建 getmsg 请求 URL。
 func (c *AccountClient) BuildMsgListURL(acct *OfficialAccount, offset int) string {
-	u := "https://mp.weixin.qq.com/mp/profile_ext"
+	u := c.baseURL() + "/mp/profile_ext"
 	query := url.Values{}
 	query.Set("action", "getmsg")
 	query.Set("__biz", acct.Biz)
@@ -122,11 +137,16 @@ func (c *AccountClient) BuildMsgListReferer(acct *OfficialAccount) string {
 	params.Set("a8scene", "1")
 	params.Set("acctmode", "0")
 	params.Set("pass_ticket", acct.PassTicket)
-	return "https://mp.weixin.qq.com/mp/profile_ext?" + params.Encode()
+	return c.baseURL() + "/mp/profile_ext?" + params.Encode()
 }
 
 // Fetch 发起带微信 PC UA 的请求。
 func (c *AccountClient) Fetch(targetURL, referer string) (*http.Response, error) {
+	return c.FetchWithCookie(targetURL, referer, "")
+}
+
+// FetchWithCookie 发起带微信 PC UA 与会话 Cookie 的请求。
+func (c *AccountClient) FetchWithCookie(targetURL, referer, cookie string) (*http.Response, error) {
 	client := &http.Client{Timeout: c.Timeout}
 	req, err := http.NewRequest("GET", targetURL, nil)
 	if err != nil {
@@ -139,6 +159,9 @@ func (c *AccountClient) Fetch(targetURL, referer string) (*http.Response, error)
 	req.Header.Set("sec-fetch-mode", "cors")
 	req.Header.Set("sec-fetch-site", "same-origin")
 	req.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 NetType/WIFI MicroMessenger/7.0.20.1781(0x6700143B) WindowsWechat(0x63090a13) UnifiedPCWindowsWechat(0xf2541022) XWEB/16467 Flue")
+	if strings.TrimSpace(cookie) != "" {
+		req.Header.Set("Cookie", cookie)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
@@ -150,7 +173,7 @@ func (c *AccountClient) Fetch(targetURL, referer string) (*http.Response, error)
 func (c *AccountClient) FetchMsgList(acct *OfficialAccount, offset int) (*OfficialMsgListResp, error) {
 	targetURL := c.BuildMsgListURL(acct, offset)
 	referer := c.BuildMsgListReferer(acct)
-	resp, err := c.Fetch(targetURL, referer)
+	resp, err := c.FetchWithCookie(targetURL, referer, acct.Cookie)
 	if err != nil {
 		return nil, fmt.Errorf("请求失败: %w", err)
 	}
@@ -179,20 +202,93 @@ func (c *AccountClient) FetchMsgList(acct *OfficialAccount, offset int) (*Offici
 	return &data, nil
 }
 
+// absoluteContentURL 把 getmsg 返回的相对/转义链接补全为完整 URL。
+func absoluteContentURL(u string) string {
+	u = strings.TrimSpace(u)
+	if u == "" {
+		return ""
+	}
+	u = html.UnescapeString(u)
+	if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
+		return u
+	}
+	return "https://mp.weixin.qq.com" + u
+}
+
+// FeedArticle 是公众号推送列表里的一篇文章(用于"最新文章"选择)。
+type FeedArticle struct {
+	Title    string `json:"title"`
+	URL      string `json:"url"`
+	Cover    string `json:"cover"`
+	Digest   string `json:"digest"`
+	Author   string `json:"author"`
+	Datetime int64  `json:"datetime"` // 推送时间(unix 秒),0 表示未知
+}
+
+// FetchLatestArticles 分页拉取账号最新的文章列表(按推送时间从新到旧)。
+func (c *AccountClient) FetchLatestArticles(acct *OfficialAccount, limit int) ([]FeedArticle, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	var out []FeedArticle
+	seen := map[string]bool{}
+	offset := 0
+	maxPages := c.MaxPages
+	if maxPages <= 0 {
+		maxPages = 20
+	}
+
+	appendArticle := func(title, contentURL, cover, digest, author string, datetime int64) {
+		u := absoluteContentURL(contentURL)
+		if u == "" || seen[u] || len(out) >= limit {
+			return
+		}
+		seen[u] = true
+		out = append(out, FeedArticle{
+			Title:    strings.TrimSpace(html.UnescapeString(title)),
+			URL:      u,
+			Cover:    strings.TrimSpace(cover),
+			Digest:   strings.TrimSpace(html.UnescapeString(digest)),
+			Author:   strings.TrimSpace(html.UnescapeString(author)),
+			Datetime: datetime,
+		})
+	}
+
+	for page := 0; page < maxPages && len(out) < limit; page++ {
+		data, err := c.FetchMsgList(acct, offset)
+		if err != nil {
+			return out, err
+		}
+		var msgList struct {
+			List []OfficialAccountMsgListRespItem `json:"list"`
+		}
+		if err := json.Unmarshal([]byte(data.MsgList), &msgList); err != nil {
+			return out, fmt.Errorf("解析推送列表失败: %w", err)
+		}
+		for _, item := range msgList.List {
+			datetime := int64(item.CommonMsgInfo.Datetime)
+			info := item.MsgExtInfo
+			appendArticle(info.Title, info.ContentUrl, info.Cover, info.Digest, info.Author, datetime)
+			for _, sub := range info.MultiAppMsgItemList {
+				appendArticle(sub.Title, sub.ContentUrl, sub.Cover, sub.Digest, sub.Author, datetime)
+			}
+			if len(out) >= limit {
+				break
+			}
+		}
+		if data.HasMore == 0 || data.NextOffset == offset {
+			break
+		}
+		offset = data.NextOffset
+	}
+	return out, nil
+}
+
 // FetchAllMsgURLs 分页拉取账号全部文章 URL(受 MaxArticles 限制)。
 func (c *AccountClient) FetchAllMsgURLs(acct *OfficialAccount) ([]string, error) {
 	var urls []string
 	offset := 0
-	buildURL := func(u string) string {
-		if u == "" {
-			return ""
-		}
-		u = html.UnescapeString(u)
-		if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
-			return u
-		}
-		return "https://mp.weixin.qq.com" + u
-	}
+	buildURL := absoluteContentURL
 
 	for page := 0; page < c.MaxPages; page++ {
 		data, err := c.FetchMsgList(acct, offset)

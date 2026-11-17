@@ -48,6 +48,8 @@ type Config struct {
 	Concurrency int
 	// TimeoutSec 单个 HTTP 请求超时秒数,默认 25。
 	TimeoutSec int
+	// BatchDelayMS 批量(多选)下载时两篇之间的间隔毫秒数,默认 900。
+	BatchDelayMS int
 
 	// Articles 是直接指定的文章 URL 列表(无需凭证)。
 	Articles []string
@@ -55,6 +57,8 @@ type Config struct {
 	Accounts []Account
 	// Bot 是推送到外部 bot/内容服务的配置(可选)。
 	Bot BotConfig
+	// Naicha 是同步文章到奶茶圈论坛的配置(可选)。
+	Naicha NaichaConfig
 }
 
 // BotConfig 描述推送文章到外部 bot 服务的配置。
@@ -69,17 +73,51 @@ type BotConfig struct {
 	TimeoutSec  int    `mapstructure:"timeout_sec" yaml:"timeout_sec"`
 }
 
+// NaichaConfig 描述把归档文章/小红书笔记发布到奶茶圈论坛的配置。
+// 公众号文章走旧版 POST /api/posts;小红书走管理员登录 + /api/posts/create。
+type NaichaConfig struct {
+	Enabled    bool     `mapstructure:"enabled" yaml:"enabled"`
+	APIBase    string   `mapstructure:"api_base" yaml:"api_base"`
+	Token      string   `mapstructure:"token" yaml:"token"`
+	Category   string   `mapstructure:"category" yaml:"category"`
+	Tags       []string `mapstructure:"tags" yaml:"tags"`
+	Author     string   `mapstructure:"author" yaml:"author"`
+	Auto       bool     `mapstructure:"auto" yaml:"auto"`
+	TimeoutSec int      `mapstructure:"timeout_sec" yaml:"timeout_sec"`
+
+	// 复用管理员登录发布小红书笔记时使用:
+	// POST /api/auth/login → POST /api/upload → POST /api/posts/create。
+	Username string `mapstructure:"username" yaml:"username"`
+	Password string `mapstructure:"password" yaml:"password"`
+	Cookie   string `mapstructure:"cookie" yaml:"cookie"` // 可选:bbs_session 的值或完整 Cookie
+	Board    string `mapstructure:"board" yaml:"board"`   // 发帖分类 boardSlug,默认 discussion
+
+	XHSEnabled *bool    `mapstructure:"xhs_enabled" yaml:"xhs_enabled"` // 默认 true
+	XHSTags    []string `mapstructure:"xhs_tags" yaml:"xhs_tags"`
+	XHSCookie  string   `mapstructure:"xhs_cookie" yaml:"xhs_cookie"` // 抓取小红书页面用的 Cookie
+}
+
+// XHSActive 表示是否启用「小红书 → 奶茶圈」同步。
+func (c NaichaConfig) XHSActive() bool {
+	if !c.Enabled {
+		return false
+	}
+	return c.XHSEnabled == nil || *c.XHSEnabled
+}
+
 // fileConfig 只包含可从 config.yaml 解码的字段,避免污染 AppInfo。
 type fileConfig struct {
-	OutputDir   string        `mapstructure:"output_dir"`
-	ProxyPort   int           `mapstructure:"proxy_port"`
-	AdminPort   int           `mapstructure:"admin_port"`
-	Interval    time.Duration `mapstructure:"interval"`
-	Concurrency int           `mapstructure:"concurrency"`
-	TimeoutSec  int           `mapstructure:"timeout_sec"`
-	Articles    []string      `mapstructure:"articles"`
-	Accounts    []Account     `mapstructure:"accounts"`
-	Bot         BotConfig     `mapstructure:"bot_sync"`
+	OutputDir    string        `mapstructure:"output_dir"`
+	ProxyPort    int           `mapstructure:"proxy_port"`
+	AdminPort    int           `mapstructure:"admin_port"`
+	Interval     time.Duration `mapstructure:"interval"`
+	Concurrency  int           `mapstructure:"concurrency"`
+	TimeoutSec   int           `mapstructure:"timeout_sec"`
+	BatchDelayMS int           `mapstructure:"batch_delay_ms"`
+	Articles     []string      `mapstructure:"articles"`
+	Accounts     []Account     `mapstructure:"accounts"`
+	Bot          BotConfig     `mapstructure:"bot_sync"`
+	Naicha       NaichaConfig  `mapstructure:"naicha_sync"`
 }
 
 // New 创建一个带默认值的 Config。
@@ -89,12 +127,13 @@ func New(version string, logger *zerolog.Logger) *Config {
 			Version: version,
 			Logger:  logger,
 		},
-		OutputDir:   "./articles",
-		ProxyPort:   2023,
-		AdminPort:   8080,
-		Interval:    30 * time.Minute,
-		Concurrency: 3,
-		TimeoutSec:  25,
+		OutputDir:    "./articles",
+		ProxyPort:    2023,
+		AdminPort:    8080,
+		Interval:     30 * time.Minute,
+		Concurrency:  3,
+		TimeoutSec:   25,
+		BatchDelayMS: 900,
 	}
 }
 
@@ -138,9 +177,13 @@ func (c *Config) LoadFromFile(path string) error {
 	if fc.TimeoutSec > 0 {
 		c.TimeoutSec = fc.TimeoutSec
 	}
+	if fc.BatchDelayMS > 0 {
+		c.BatchDelayMS = fc.BatchDelayMS
+	}
 	c.Articles = fc.Articles
 	c.Accounts = fc.Accounts
 	c.Bot = fc.Bot
+	c.Naicha = fc.Naicha
 	return nil
 }
 
@@ -163,6 +206,18 @@ func (c *Config) Normalize() error {
 	}
 	if c.TimeoutSec <= 0 {
 		c.TimeoutSec = 25
+	}
+	if c.BatchDelayMS <= 0 {
+		c.BatchDelayMS = 900
+	}
+	if c.Naicha.APIBase == "" {
+		c.Naicha.APIBase = "http://localhost:3002"
+	}
+	if c.Naicha.Category == "" {
+		c.Naicha.Category = "discussion"
+	}
+	if c.Naicha.TimeoutSec <= 0 {
+		c.Naicha.TimeoutSec = 60
 	}
 	return nil
 }

@@ -26,20 +26,21 @@ var (
 	urls []string
 
 	// 插件相关标志。
-	proxyPort      int
-	adminPort      int
-	outputFlag     string
-	dataDirFlag    string
-	injectMatch    string
-	uninstallCert  bool
-	noProxy        bool
-	noInstallCert  bool
+	proxyPort     int
+	adminPort     int
+	outputFlag    string
+	dataDirFlag   string
+	injectMatch   string
+	uninstallCert bool
+	noProxy       bool
+	noInstallCert bool
+	upstreamProxy string
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "wx-mp-sync",
 	Short: "公众号文章同步插件",
-	Long:  "在微信 PC 客户端浏览公众号文章时注入「同步」按钮,一键把文章(HTML+Markdown+图片)归档到本地。",
+	Long:  "在微信 PC 客户端浏览公众号文章时注入「同步」「下载」按钮,一键把文章(HTML+Markdown+图片)归档到本地或打包为 ZIP 下载。",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if cmd.Name() == "version" || cmd.Name() == "help" {
 			return nil
@@ -69,7 +70,8 @@ func init() {
 	rootCmd.Flags().IntVar(&adminPort, "admin-port", 8080, "本地管理服务端口")
 	rootCmd.PersistentFlags().StringVar(&outputFlag, "output", "", "文章归档目录(默认取配置 output_dir)")
 	rootCmd.Flags().StringVar(&dataDirFlag, "data-dir", "", "数据目录(存放根证书,默认 %APPDATA%/wx-mp-sync)")
-	rootCmd.Flags().StringVar(&injectMatch, "inject-match", "mp.weixin.qq.com", "注入按钮匹配的域名(一般无需修改)")
+	rootCmd.Flags().StringVar(&injectMatch, "inject-match", "", "注入按钮匹配的域名,多个用逗号分隔(留空使用默认:微信/搜狗/豆包/ChatGPT;启用小红书同步时自动加 www.xiaohongshu.com)")
+	rootCmd.Flags().StringVar(&upstreamProxy, "upstream-proxy", "", "上级代理(如 http://127.0.0.1:7897),留空时自动读取系统代理")
 	rootCmd.Flags().BoolVar(&uninstallCert, "uninstall-cert", false, "卸载根证书后退出")
 	rootCmd.Flags().BoolVar(&noProxy, "no-proxy", false, "不自动设置系统代理(需手动配置)")
 	rootCmd.Flags().BoolVar(&noInstallCert, "no-install-cert", false, "不自动安装根证书")
@@ -154,6 +156,9 @@ func buildAppOptions(cmd *cobra.Command) (app.Options, error) {
 		SetSystemProxy: !noProxy,
 		UninstallCert:  uninstallCert,
 		Version:        Cfg.App.Version,
+		BatchDelayMS:   Cfg.BatchDelayMS,
 		Bot:            Cfg.Bot,
+		Naicha:         Cfg.Naicha,
+		UpstreamProxy:  upstreamProxy,
 	}, nil
 }

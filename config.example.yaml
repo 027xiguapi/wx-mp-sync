@@ -22,6 +22,10 @@ concurrency: 3
 # 单个 HTTP 请求超时秒数
 timeout_sec: 25
 
+# 批量下载时两篇之间的抓取间隔(毫秒),避免触发微信/小红书限流。
+# 公众号搜索页多选、小红书批量下载共用这个值。
+batch_delay_ms: 900
+
 # ---------------------------------------------------------------------------
 # 可选:把同步的文章推送到外部 bot/内容服务
 # 同步(点按钮或手动同步)后,会 POST 到 {api_base}/api/bot/sync/articles:
@@ -44,6 +48,32 @@ bot_sync:
 # 自定义图床域名(可选,环境变量):
 #   运行时设置 UPLOAD_R2_DOMAIN=https://i.routerpark.com 后,上传接口返回的
 #   图片 URL 若为相对路径(/xxx)会补全该域名;若主机是默认 r2.dev 则替换为该域名。
+
+# ---------------------------------------------------------------------------
+# 可选:同步文章到奶茶圈论坛
+# 公众号文章走旧版 POST /api/posts(需要 token);小红书走后新版论坛接口,
+# 复用管理员登录:POST /api/auth/login → POST /api/upload → POST /api/posts/create。
+# 管理页可对单篇点「同步文章」;小红书在管理页或笔记页右下角点「同步到奶茶圈」。
+# ---------------------------------------------------------------------------
+naicha_sync:
+  enabled: false
+  api_base: http://localhost:3002
+  token: ""                # 旧版论坛的 POST_API_TOKEN;留空读 NAICHA_POST_TOKEN / POST_API_TOKEN
+  category: discussion     # 旧版分类:group/rebate/promo/discussion/poll/choose/lottery/notice
+  tags: ["公众号"]          # 旧版标签,最多 6 个,每个最多 12 字
+  author: ""               # 文章没有作者时的兜底昵称
+  auto: false              # true: 每次保存/手动同步后自动发帖
+  timeout_sec: 60
+
+  # --- 小红书 → 奶茶圈(新版论坛,复用管理员登录)---
+  xhs_enabled: true        # 默认 true;设为 false 可关闭小红书同步
+  board: discussion        # 发帖分类 boardSlug(以奶茶圈后台的分类标识为准)
+  username: ""             # 奶茶圈管理员用户名 / 邮箱
+  password: ""             # 奶茶圈管理员密码
+  cookie: ""               # 可选:浏览器里的 bbs_session 值或完整 Cookie;填写后跳过登录
+  xhs_tags: ["奶茶"]        # 追加到帖子标签(「小红书」会自动加上)
+  xhs_cookie: ""           # 可选:抓取小红书页面用的浏览器 Cookie;页面按钮同步不需要,
+                           # 本地批量下载遇到登录墙时再填
 
 # ---------------------------------------------------------------------------
 # 方式一:直接指定文章 URL(无需任何凭证,推荐先用这种方式验证)

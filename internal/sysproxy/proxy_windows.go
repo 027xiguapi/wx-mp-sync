@@ -20,9 +20,9 @@ import (
 var internetSetOption = windows.NewLazySystemDLL("wininet.dll").NewProc("InternetSetOptionW")
 
 const (
-	internetOptionRefresh          = 37
-	internetOptionSettingsChanged  = 39
-	internetSettingsRegPath        = `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`
+	internetOptionRefresh         = 37
+	internetOptionSettingsChanged = 39
+	internetSettingsRegPath       = `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`
 )
 
 // Settings 描述一组系统代理设置。

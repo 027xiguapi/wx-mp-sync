@@ -19,6 +19,7 @@
   .btn { background: #07c160; color: #fff; border: 0; border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer; }
   .btn:hover { opacity: .9; }
   .btn:disabled { opacity: .5; cursor: default; }
+  .btn-mini { padding: 3px 9px; font-size: 12px; border-radius: 5px; background: #b26a3c; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eee; vertical-align: top; }
   th { color: #888; font-weight: 500; white-space: nowrap; }
@@ -31,6 +32,28 @@
   pre.log { background: #1e1e1e; color: #d4d4d4; border-radius: 6px; padding: 12px; font-size: 12px; max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
   .log-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   .log-toolbar span { font-size: 12px; color: #999; }
+  .batch-form textarea {
+    width: 100%; box-sizing: border-box; min-height: 84px; padding: 8px 10px;
+    border: 1px solid #ddd; border-radius: 6px; font-size: 13px; font-family: Consolas, Menlo, monospace;
+    resize: vertical;
+  }
+  .batch-actions { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+  pre.batch-progress {
+    background: #fafafa; border: 1px solid #eee; border-radius: 6px; padding: 10px;
+    font-size: 12px; max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+    margin: 10px 0 0; color: #555;
+  }
+  .hint { font-size: 12px; color: #999; margin-top: 6px; }
+  select#acct-select {
+    flex: 1; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: #fff;
+  }
+  .acct-item {
+    display: flex; gap: 8px; align-items: flex-start; padding: 8px 4px;
+    border-bottom: 1px solid #f2f2f2; font-size: 13px; cursor: pointer;
+  }
+  .acct-item .t { flex: 1; color: #333; }
+  .acct-item .d { color: #999; white-space: nowrap; font-size: 12px; }
+  .acct-empty { color: #999; font-size: 13px; padding: 10px 0; }
 </style>
 </head>
 <body>
@@ -55,10 +78,99 @@
   </div>
 
   <div class="card">
+    <h2>同步文章到奶茶圈</h2>
+    <div class="sync-form">
+      <input id="naicha-url" type="text" placeholder="粘贴公众号文章链接,归档后发布到奶茶圈论坛">
+      <button class="btn" id="naicha-sync-btn" style="background:#b26a3c">同步文章</button>
+    </div>
+    <div class="msg" id="naicha-msg"></div>
+    <div class="hint" id="naicha-hint">正文上限 3000 字,超出会节选并附原文链接;图片最多 6 张,在帖子详情里以图集展示。也可以在下方「已同步文章」里对单篇点「同步文章」。</div>
+  </div>
+
+  <div class="card">
+    <h2>同步小红书到奶茶圈</h2>
+    <div class="sync-form">
+      <input id="xhs-url" type="text" placeholder="粘贴小红书笔记链接(xiaohongshu.com/explore/... 或 xhslink.com/...)">
+      <button class="btn" id="xhs-sync-btn" style="background:#ff2442">同步笔记</button>
+    </div>
+    <div class="msg" id="xhs-msg"></div>
+    <div class="hint" id="xhs-hint">把笔记正文和全部图片发布为奶茶圈帖子。程序运行期间打开小红书笔记页,右下角也会出现「⬆ 同步到奶茶圈」按钮,用页面数据同步更稳。</div>
+  </div>
+
+  <div class="card">
+    <h2>批量下载小红书到本地</h2>
+    <div class="batch-form">
+      <textarea id="xhs-batch-urls" placeholder="每行一个小红书笔记链接(xiaohongshu.com/explore/...、/discovery/item/... 或 xhslink.com 短链),也支持直接粘贴整段分享文本"></textarea>
+      <div class="batch-actions">
+        <button class="btn" id="xhs-batch-btn" style="background:#ff2442">开始下载</button>
+        <button class="btn" id="xhs-batch-cancel-btn" style="display:none;background:#8a8a8a">取消</button>
+        <span class="msg" id="xhs-batch-msg"></span>
+      </div>
+      <div class="hint" id="xhs-batch-hint">保存到「输出目录/小红书/年-月/标题/」:Markdown 正文 + 原图 + metadata.json,完成后自动打包 ZIP。重复笔记会自动跳过;正文里的 #话题[话题]# 标记会被清理。</div>
+    </div>
+    <pre class="batch-progress" id="xhs-batch-progress" style="display:none"></pre>
+  </div>
+
+  <div class="card">
+    <h2>批量下载(多链接)</h2>
+    <div class="batch-form">
+      <textarea id="batch-urls" placeholder="每行一个公众号文章链接(https://mp.weixin.qq.com/s/...),支持一次粘贴多条"></textarea>
+      <div class="batch-actions">
+        <button class="btn" id="batch-btn">开始批量下载</button>
+        <button class="btn" id="batch-cancel-btn" style="display:none;background:#8a8a8a">取消</button>
+        <span class="msg" id="batch-msg"></span>
+      </div>
+      <div class="hint">在微信「搜一搜」的文章结果页,结果卡片可以直接点选,右下角出现「☑ 多选」;选中后点「⬇ 批量下载」即可。搜狗微信的跳转链接需要你的搜索会话,请在搜狗结果页内多选下载。</div>
+    </div>
+    <pre class="batch-progress" id="batch-progress" style="display:none"></pre>
+  </div>
+
+  <div class="card">
+    <h2>豆包分享下载(正文 + 图片)</h2>
+    <div class="batch-form">
+      <textarea id="doubao-urls" placeholder="每行一个豆包分享链接(https://www.doubao.com/thread/...),支持一次粘贴多条"></textarea>
+      <div class="batch-actions">
+        <button class="btn" id="doubao-btn" style="background:#ff6a00">下载为 ZIP</button>
+        <button class="btn" id="doubao-cancel-btn" style="display:none;background:#8a8a8a">取消</button>
+        <span class="msg" id="doubao-msg"></span>
+      </div>
+      <div class="hint">打包内容:Markdown 正文 + 全部正文图片 + metadata.json。程序运行期间打开豆包分享页,页面右下角也会出现「⬇ 下载本页」按钮。</div>
+    </div>
+    <pre class="batch-progress" id="doubao-progress" style="display:none"></pre>
+  </div>
+
+  <div class="card">
+    <h2>ChatGPT 分享下载(正文 + 图片)</h2>
+    <div class="batch-form">
+      <textarea id="chatgpt-urls" placeholder="每行一个 ChatGPT 分享链接(https://chatgpt.com/s/... 或 /share/...),支持一次粘贴多条"></textarea>
+      <div class="batch-actions">
+        <button class="btn" id="chatgpt-btn" style="background:#10a37f">下载为 ZIP</button>
+        <button class="btn" id="chatgpt-cancel-btn" style="display:none;background:#8a8a8a">取消</button>
+        <span class="msg" id="chatgpt-msg"></span>
+      </div>
+      <div class="hint">打包内容:Markdown 正文 + 全部图片 + metadata.json。需要能访问 chatgpt.com;程序启动时会自动把原有系统代理(如 Clash)设为上级代理。</div>
+    </div>
+    <pre class="batch-progress" id="chatgpt-progress" style="display:none"></pre>
+  </div>
+
+  <div class="card">
+    <h2>公众号最新文章(自动捕获)</h2>
+    <div class="sync-form">
+      <select id="acct-select"></select>
+      <button class="btn" id="acct-fetch">拉取最新</button>
+      <button class="btn" id="acct-download" style="background:#1989fa" disabled>下载选中(0)</button>
+    </div>
+    <div class="hint" id="acct-hint">在微信里打开任意公众号文章后,这里会自动出现该公众号(凭证来自请求会话,有效期通常数小时)。</div>
+    <div class="msg" id="acct-msg"></div>
+    <div id="acct-list"></div>
+  </div>
+
+  <div class="card">
     <h2>已同步文章(<span id="count">0</span>)</h2>
+    <div class="msg" id="list-msg"></div>
     <table>
-      <thead><tr><th>标题</th><th>公众号</th><th>发布时间</th><th>同步时间</th></tr></thead>
-      <tbody id="list-body"><tr><td colspan="4" class="empty">加载中…</td></tr></tbody>
+      <thead><tr><th>标题</th><th>公众号</th><th>发布时间</th><th>同步时间</th><th>奶茶圈</th><th>操作</th></tr></thead>
+      <tbody id="list-body"><tr><td colspan="6" class="empty">加载中…</td></tr></tbody>
     </table>
   </div>
 
@@ -75,6 +187,9 @@
 <script>
 (function () {
   var listTimer = null;
+  var naichaEnabled = false;
+  var xhsEnabled = false;
+  var xhsDownloadEnabled = false;
 
   function el(id) { return document.getElementById(id); }
 
@@ -95,7 +210,26 @@
         '<div>输出目录: <b>' + esc(st.output_dir || '-') + '</b></div>' +
         '<div>代理地址: <b>' + esc(st.proxy_addr || '-') + '</b></div>' +
         '<div>系统代理: <b>' + esc(st.system_proxy || '未设置') + '</b></div>' +
-        '<div>证书: <b>' + esc(st.cert_name || '-') + '</b></div>';
+        '<div>证书: <b>' + esc(st.cert_name || '-') + '</b></div>' +
+        '<div>奶茶圈: <b>' + (st.naicha_api ? esc(st.naicha_api) + (st.naicha_auto ? ' · 保存后自动同步' : ' · 手动同步') : '未启用') + '</b></div>' +
+        '<div>小红书同步: <b>' + (st.xhs_enabled ? '可用' : '未启用') + (st.naicha_board ? ' · 分类 ' + esc(st.naicha_board) : '') + '</b></div>' +
+        '<div>小红书本地下载: <b>' + (st.xhs_download_enabled ? '可用' : '未启用') + '</b></div>';
+      naichaEnabled = !!st.naicha_api;
+      if (!naichaEnabled) {
+        el('naicha-sync-btn').disabled = true;
+        el('naicha-hint').textContent = '未启用:在 config.yaml 里配置 naicha_sync(enabled: true、api_base、token),重启后可用。';
+      }
+      xhsEnabled = !!st.xhs_enabled;
+      if (!xhsEnabled) {
+        el('xhs-sync-btn').disabled = true;
+        el('xhs-hint').textContent = '未启用:在 config.yaml 的 naicha_sync 里开启 enabled,并填写管理员 username / password(或 cookie)。';
+      }
+      xhsDownloadEnabled = !!st.xhs_download_enabled;
+      if (!xhsDownloadEnabled) {
+        el('xhs-batch-btn').disabled = true;
+        el('xhs-batch-hint').textContent = '小红书本地下载未启用。';
+      }
+      loadList();
     }).catch(function () {
       el('status-line').textContent = '无法连接管理服务';
     });
@@ -105,19 +239,37 @@
     fetch('/api/list').then(function (r) { return r.json(); }).then(function (res) {
       var tbody = el('list-body');
       if (!res.ok || !res.list || res.list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="empty">还没有同步任何文章。在微信里打开公众号文章,点右下角"⬇ 同步"。</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">还没有同步任何文章。在微信里打开公众号文章,点右下角"⬇ 同步"归档或"⬇ 下载"直接下载 ZIP;豆包分享用上面的「豆包分享下载」。</td></tr>';
         el('count').textContent = '0';
         return;
       }
       el('count').textContent = res.list.length;
       var html = '';
       res.list.forEach(function (a) {
-        var href = '/articles/' + esc(a.dir) + '/' + esc(a.html || 'index.html');
+        var base = '/articles/' + esc(a.dir) + '/';
+        var href = '';
+        if (a.html) { href = base + esc(a.html); }
+        else if (a.markdown) { href = base + esc(a.markdown); }
+        var titleCell = href
+          ? '<a href="' + href + '" target="_blank">' + esc(a.title || '(无标题)') + '</a>'
+          : esc(a.title || '(无标题)');
+        var zipHref = '/api/download/saved?dir=' + encodeURIComponent(a.dir || '');
+        var naichaCell = a.naicha_url
+          ? '<a href="' + esc(a.naicha_url) + '" target="_blank" rel="noopener">已发布</a>'
+          : (a.naicha_at ? '已发布' : '<span style="color:#bbb">未发布</span>');
+        var ops = '';
+        if (a.markdown) { ops += '<a href="' + base + esc(a.markdown) + '" target="_blank">Markdown</a> · '; }
+        ops += '<a href="' + zipHref + '" title="下载正文 + 图片 + metadata.json">下载 ZIP</a>';
+        if (naichaEnabled && !a.naicha_url && !a.naicha_at && a.markdown) {
+          ops += ' · <button class="btn btn-mini" data-naicha-dir="' + esc(a.dir || '') + '">同步文章</button>';
+        }
         html += '<tr>' +
-          '<td><a href="' + href + '" target="_blank">' + esc(a.title || '(无标题)') + '</a></td>' +
+          '<td>' + titleCell + '</td>' +
           '<td>' + esc(a.author || '-') + '</td>' +
           '<td>' + esc(a.publish_time || '-') + '</td>' +
-          '<td>' + esc(a.synced_at || '-') + '</td></tr>';
+          '<td>' + esc(a.synced_at || '-') + '</td>' +
+          '<td>' + naichaCell + '</td>' +
+          '<td>' + ops + '</td></tr>';
       });
       tbody.innerHTML = html;
     }).catch(function () {});
@@ -157,6 +309,8 @@
       if (res.ok) {
         msg.className = 'msg ok';
         msg.textContent = res.duplicate ? '✓ 该文章已同步过' : '✓ 已保存到 ' + (res.dir || '');
+        if (res.naicha && res.naicha.ok) { msg.textContent += ' · 已发布到奶茶圈'; }
+        else if (res.naicha && !res.naicha.ok) { msg.textContent += ' · 发帖失败'; }
       } else {
         msg.className = 'msg err';
         msg.textContent = '✗ ' + (res.error || '同步失败');
@@ -173,6 +327,677 @@
   el('sync-url').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') { el('sync-btn').click(); }
   });
+
+  // ---------- 同步文章到奶茶圈 ----------
+  el('naicha-sync-btn').addEventListener('click', function () {
+    var url = el('naicha-url').value.trim();
+    var msg = el('naicha-msg');
+    if (!naichaEnabled) { msg.className = 'msg err'; msg.textContent = '奶茶圈同步未启用,请先修改 config.yaml'; return; }
+    if (!url) { msg.className = 'msg err'; msg.textContent = '请输入文章链接'; return; }
+    var btn = el('naicha-sync-btn');
+    btn.disabled = true;
+    msg.className = 'msg'; msg.textContent = '归档并同步中…';
+    fetch('/api/naicha/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res.ok) {
+        msg.className = 'msg ok';
+        msg.innerHTML = (res.duplicate ? '✓ 这篇文章已经发布过' : '✓ 已发布到奶茶圈') +
+          (res.url ? ' <a href="' + esc(res.url) + '" target="_blank" rel="noopener">查看帖子</a>' : '') +
+          (res.truncated ? '(正文超长,已节选)' : '');
+        el('naicha-url').value = '';
+        setTimeout(loadList, 500);
+      } else {
+        msg.className = 'msg err';
+        msg.textContent = '✗ ' + (res.error || '同步失败');
+      }
+    }).catch(function () {
+      msg.className = 'msg err';
+      msg.textContent = '✗ 请求失败';
+    }).then(function () {
+      btn.disabled = false;
+    });
+  });
+
+  el('naicha-url').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { el('naicha-sync-btn').click(); }
+  });
+
+  // ---------- 同步小红书到奶茶圈 ----------
+  el('xhs-sync-btn').addEventListener('click', function () {
+    var url = el('xhs-url').value.trim();
+    var msg = el('xhs-msg');
+    if (!xhsEnabled) { msg.className = 'msg err'; msg.textContent = '小红书同步未启用,请先修改 config.yaml'; return; }
+    if (!url) { msg.className = 'msg err'; msg.textContent = '请输入小红书笔记链接'; return; }
+    var btn = el('xhs-sync-btn');
+    btn.disabled = true;
+    msg.className = 'msg'; msg.textContent = '抓取笔记并同步中…';
+    fetch('/api/xhs/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: url })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res.ok) {
+        msg.className = 'msg ok';
+        msg.innerHTML = (res.duplicate ? '✓ 这篇笔记已经发布过' : '✓ 已发布到奶茶圈') +
+          (res.url ? ' <a href="' + esc(res.url) + '" target="_blank" rel="noopener">查看帖子</a>' : '') +
+          (res.duplicate ? '' : ' · ' + (res.images || 0) + ' 张图片') +
+          (res.pending ? '(帖子待审核)' : '') +
+          (res.failed_images ? '(' + res.failed_images + ' 张图片失败)' : '');
+        el('xhs-url').value = '';
+      } else {
+        msg.className = 'msg err';
+        msg.textContent = '✗ ' + (res.error || '同步失败');
+      }
+    }).catch(function () {
+      msg.className = 'msg err';
+      msg.textContent = '✗ 请求失败';
+    }).then(function () {
+      btn.disabled = false;
+    });
+  });
+
+  el('xhs-url').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { el('xhs-sync-btn').click(); }
+  });
+
+  // ---------- 批量下载小红书到本地 ----------
+  var xhsBatchTimer = null;
+  var xhsBatchJobId = '';
+
+  function renderXHSBatch(job) {
+    var box = el('xhs-batch-progress');
+    box.style.display = 'block';
+    var lines = ['任务 ' + job.id + ' · 共 ' + job.total + ' 篇 · 完成 ' + job.done +
+      ' · 成功 ' + job.ok + ' · 已存在 ' + job.skipped + ' · 失败 ' + job.failed, ''];
+    (job.items || []).forEach(function (it) {
+      lines.push(batchStateIcon(it.state) + ' ' + (it.title || it.url) +
+        (it.images ? ' · ' + it.images + ' 张图' : '') + (it.error ? ' — ' + it.error : ''));
+    });
+    box.textContent = lines.join('\n');
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function pollXHSBatch() {
+    if (!xhsBatchJobId) { return; }
+    fetch('/api/xhs/status?id=' + encodeURIComponent(xhsBatchJobId)).then(function (r) {
+      return r.json();
+    }).then(function (res) {
+      if (!res.ok || !res.job) { throw new Error((res && res.error) || '任务丢失'); }
+      var job = res.job;
+      renderXHSBatch(job);
+      var msg = el('xhs-batch-msg');
+      msg.className = 'msg';
+      msg.textContent = '下载中 ' + job.done + '/' + job.total + ' …';
+      if (job.finished) {
+        xhsBatchJobId = '';
+        el('xhs-batch-btn').disabled = false;
+        el('xhs-batch-cancel-btn').style.display = 'none';
+        var doneOK = job.ok + job.skipped;
+        if (doneOK > 0) {
+          msg.className = 'msg ok';
+          msg.textContent = '✓ 成功 ' + job.ok + ' 篇' + (job.skipped ? ' · 已存在 ' + job.skipped + ' 篇' : '') +
+            (job.failed ? ' · 失败 ' + job.failed + ' 篇' : '') + ',正在打包 ZIP…';
+          downloadJobZip('/api/xhs/zip?id=' + encodeURIComponent(job.id), 'xhs-notes.zip', msg);
+        } else {
+          msg.className = 'msg err';
+          msg.textContent = '✗ 全部失败';
+        }
+        setTimeout(loadList, 500);
+        return;
+      }
+      xhsBatchTimer = setTimeout(pollXHSBatch, 700);
+    }).catch(function (err) {
+      xhsBatchTimer = setTimeout(pollXHSBatch, 1500);
+      var msg = el('xhs-batch-msg');
+      msg.className = 'msg err';
+      msg.textContent = '查询进度失败:' + ((err && err.message) || '');
+    });
+  }
+
+  function startXHSBatch() {
+    var urls = parseBatchURLs(el('xhs-batch-urls').value);
+    var msg = el('xhs-batch-msg');
+    if (!xhsDownloadEnabled) { msg.className = 'msg err'; msg.textContent = '小红书本地下载未启用'; return; }
+    if (!urls || urls.length === 0) { msg.className = 'msg err'; msg.textContent = '没有可下载的链接'; return; }
+    if (xhsBatchTimer) { clearTimeout(xhsBatchTimer); xhsBatchTimer = null; }
+    el('xhs-batch-btn').disabled = true;
+    msg.className = 'msg';
+    msg.textContent = '创建任务中…';
+    fetch('/api/xhs/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: urls })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) { throw new Error(res.error || '创建任务失败'); }
+      xhsBatchJobId = res.job_id;
+      el('xhs-batch-cancel-btn').style.display = '';
+      msg.textContent = '开始下载 ' + res.total + ' 篇…' + (res.dropped ? '(忽略 ' + res.dropped + ' 条重复/无效链接)' : '');
+      pollXHSBatch();
+    }).catch(function (err) {
+      el('xhs-batch-btn').disabled = false;
+      msg.className = 'msg err';
+      msg.textContent = '✗ ' + ((err && err.message) || '请求失败');
+    });
+  }
+
+  el('xhs-batch-btn').addEventListener('click', startXHSBatch);
+
+  el('xhs-batch-cancel-btn').addEventListener('click', function () {
+    if (!xhsBatchJobId) { return; }
+    fetch('/api/xhs/cancel?id=' + encodeURIComponent(xhsBatchJobId), { method: 'POST' }).catch(function () {});
+  });
+
+  // 已同步文章列表里的「同步文章」按钮(事件委托,列表刷新后仍然有效)。
+  el('list-body').addEventListener('click', function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest('[data-naicha-dir]') : null;
+    if (!btn) { return; }
+    var dir = btn.getAttribute('data-naicha-dir') || '';
+    var msg = el('list-msg');
+    btn.disabled = true;
+    btn.textContent = '同步中…';
+    fetch('/api/naicha/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dir: dir })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (res.ok) {
+        msg.className = 'msg ok';
+        msg.innerHTML = (res.duplicate ? '✓ 这篇文章已经发布过' : '✓ 已发布到奶茶圈') +
+          (res.url ? ' <a href="' + esc(res.url) + '" target="_blank" rel="noopener">查看帖子</a>' : '') +
+          (res.truncated ? '(正文超长,已节选)' : '');
+        setTimeout(loadList, 500);
+      } else {
+        msg.className = 'msg err';
+        msg.textContent = '✗ ' + (res.error || '同步失败');
+        btn.disabled = false;
+        btn.textContent = '同步文章';
+      }
+    }).catch(function () {
+      msg.className = 'msg err';
+      msg.textContent = '✗ 请求失败';
+      btn.disabled = false;
+      btn.textContent = '同步文章';
+    });
+  });
+
+  // ---------- 批量下载 ----------
+  var batchTimer = null;
+  var batchJobId = '';
+
+  function parseBatchURLs(text) {
+    var parts = String(text || '').split(/[\r\n]+/);
+    var out = [];
+    for (var i = 0; i < parts.length; i++) {
+      var s = parts[i].replace(/^\s+|\s+$/g, '');
+      if (s) { out.push(s); }
+    }
+    return out;
+  }
+
+  function batchStateIcon(state) {
+    if (state === 'ok') { return '✓'; }
+    if (state === 'skipped') { return '•'; }
+    if (state === 'failed') { return '✗'; }
+    if (state === 'running') { return '…'; }
+    if (state === 'canceled') { return '⊘'; }
+    return '·';
+  }
+
+  function renderBatch(job) {
+    var box = el('batch-progress');
+    box.style.display = 'block';
+    var lines = ['任务 ' + job.id + ' · 共 ' + job.total + ' 篇 · 完成 ' + job.done +
+      ' · 成功 ' + job.ok + ' · 已存在 ' + job.skipped + ' · 失败 ' + job.failed, ''];
+    (job.items || []).forEach(function (it) {
+      lines.push(batchStateIcon(it.state) + ' ' + (it.title || it.url) + (it.error ? ' — ' + it.error : ''));
+    });
+    box.textContent = lines.join('\n');
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function downloadJobZip(zipURL, defaultName, msgEl) {
+    fetch(zipURL).then(function (r) {
+      var ct = (r.headers.get('Content-Type') || '').toLowerCase();
+      if (ct.indexOf('application/json') !== -1) {
+        return r.json().then(function (j) { throw new Error((j && j.error) || '打包失败'); });
+      }
+      if (!r.ok) { throw new Error('HTTP ' + r.status); }
+      var cd = r.headers.get('Content-Disposition') || '';
+      var m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+      var name = defaultName;
+      if (m) { try { name = decodeURIComponent(m[1]); } catch (e) {} }
+      return r.blob().then(function (b) { return { blob: b, name: name }; });
+    }).then(function (out) {
+      var url = URL.createObjectURL(out.blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = out.name;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () {
+        if (a.parentNode) { a.parentNode.removeChild(a); }
+        URL.revokeObjectURL(url);
+      }, 10000);
+    }).catch(function (err) {
+      msgEl.className = 'msg err';
+      msgEl.textContent = '✗ 打包失败:' + ((err && err.message) || '');
+    });
+  }
+
+  function batchDownloadZip(id) {
+    downloadJobZip('/api/batch/zip?id=' + encodeURIComponent(id), 'wx-mp-batch.zip', el('batch-msg'));
+  }
+
+  function pollBatch() {
+    if (!batchJobId) { return; }
+    fetch('/api/batch/status?id=' + encodeURIComponent(batchJobId)).then(function (r) {
+      return r.json();
+    }).then(function (res) {
+      if (!res.ok || !res.job) { throw new Error((res && res.error) || '任务丢失'); }
+      var job = res.job;
+      renderBatch(job);
+      var msg = el('batch-msg');
+      msg.className = 'msg';
+      msg.textContent = '下载中 ' + job.done + '/' + job.total + ' …';
+      if (job.finished) {
+        batchJobId = '';
+        el('batch-btn').disabled = false;
+        el('batch-cancel-btn').style.display = 'none';
+        var doneOK = job.ok + job.skipped;
+        if (doneOK > 0) {
+          msg.className = 'msg ok';
+          msg.textContent = '✓ 成功 ' + job.ok + ' 篇' + (job.skipped ? ' · 已存在 ' + job.skipped + ' 篇' : '') +
+            (job.failed ? ' · 失败 ' + job.failed + ' 篇' : '') + ',正在打包 ZIP…';
+          batchDownloadZip(job.id);
+        } else {
+          msg.className = 'msg err';
+          msg.textContent = '✗ 全部失败';
+        }
+        setTimeout(loadList, 500);
+        return;
+      }
+      batchTimer = setTimeout(pollBatch, 700);
+    }).catch(function (err) {
+      batchTimer = setTimeout(pollBatch, 1500);
+      var msg = el('batch-msg');
+      msg.className = 'msg err';
+      msg.textContent = '查询进度失败:' + ((err && err.message) || '');
+    });
+  }
+
+  // startBatchRequest 创建批量下载任务并轮询进度(粘贴链接与「最新文章」共用)。
+  function startBatchRequest(urls) {
+    var msg = el('batch-msg');
+    if (!urls || urls.length === 0) { msg.className = 'msg err'; msg.textContent = '没有可下载的链接'; return; }
+    if (batchTimer) { clearTimeout(batchTimer); batchTimer = null; }
+    el('batch-btn').disabled = true;
+    msg.className = 'msg';
+    msg.textContent = '创建任务中…';
+    fetch('/api/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: urls, download: true })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) { throw new Error(res.error || '创建任务失败'); }
+      batchJobId = res.job_id;
+      el('batch-cancel-btn').style.display = '';
+      msg.textContent = '开始下载 ' + res.total + ' 篇…';
+      pollBatch();
+    }).catch(function (err) {
+      el('batch-btn').disabled = false;
+      msg.className = 'msg err';
+      msg.textContent = '✗ ' + ((err && err.message) || '请求失败');
+    });
+  }
+
+  el('batch-btn').addEventListener('click', function () {
+    startBatchRequest(parseBatchURLs(el('batch-urls').value));
+  });
+
+  el('batch-cancel-btn').addEventListener('click', function () {
+    if (!batchJobId) { return; }
+    fetch('/api/batch/cancel?id=' + encodeURIComponent(batchJobId), { method: 'POST' }).catch(function () {});
+  });
+
+  // ---------- 豆包分享下载 ----------
+  var doubaoJobId = '';
+  var doubaoTimer = null;
+
+  function renderDoubao(job) {
+    var box = el('doubao-progress');
+    box.style.display = 'block';
+    var lines = ['任务 ' + job.id + ' · 共 ' + job.total + ' 个 · 完成 ' + job.done +
+      ' · 成功 ' + job.ok + ' · 已存在 ' + job.skipped + ' · 失败 ' + job.failed, ''];
+    (job.items || []).forEach(function (it) {
+      lines.push(batchStateIcon(it.state) + ' ' + (it.title || it.url) +
+        (it.images ? '(' + it.images + ' 张图)' : '') + (it.error ? ' — ' + it.error : ''));
+    });
+    box.textContent = lines.join('\n');
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function doubaoDownloadZip(id) {
+    fetch('/api/doubao/zip?id=' + encodeURIComponent(id)).then(function (r) {
+      var ct = (r.headers.get('Content-Type') || '').toLowerCase();
+      if (ct.indexOf('application/json') !== -1) {
+        return r.json().then(function (j) { throw new Error((j && j.error) || '打包失败'); });
+      }
+      if (!r.ok) { throw new Error('HTTP ' + r.status); }
+      var cd = r.headers.get('Content-Disposition') || '';
+      var m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+      var name = 'doubao-batch.zip';
+      if (m) { try { name = decodeURIComponent(m[1]); } catch (e) {} }
+      return r.blob().then(function (b) { return { blob: b, name: name }; });
+    }).then(function (out) {
+      var url = URL.createObjectURL(out.blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = out.name;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () {
+        if (a.parentNode) { a.parentNode.removeChild(a); }
+        URL.revokeObjectURL(url);
+      }, 10000);
+    }).catch(function (err) {
+      var msg = el('doubao-msg');
+      msg.className = 'msg err';
+      msg.textContent = '✗ 打包失败:' + ((err && err.message) || '');
+    });
+  }
+
+  function pollDoubao() {
+    if (!doubaoJobId) { return; }
+    fetch('/api/doubao/status?id=' + encodeURIComponent(doubaoJobId)).then(function (r) {
+      return r.json();
+    }).then(function (res) {
+      if (!res.ok || !res.job) { throw new Error((res && res.error) || '任务丢失'); }
+      var job = res.job;
+      renderDoubao(job);
+      var msg = el('doubao-msg');
+      msg.className = 'msg';
+      msg.textContent = '下载中 ' + job.done + '/' + job.total + ' …';
+      if (job.finished) {
+        doubaoJobId = '';
+        el('doubao-btn').disabled = false;
+        el('doubao-cancel-btn').style.display = 'none';
+        var doneOK = job.ok + job.skipped;
+        if (doneOK > 0) {
+          msg.className = 'msg ok';
+          msg.textContent = '✓ 成功 ' + job.ok + ' 个' + (job.skipped ? ' · 已存在 ' + job.skipped + ' 个' : '') +
+            (job.failed ? ' · 失败 ' + job.failed + ' 个' : '') + ',正在打包 ZIP…';
+          doubaoDownloadZip(job.id);
+        } else {
+          msg.className = 'msg err';
+          msg.textContent = '✗ 全部失败';
+        }
+        setTimeout(loadList, 500);
+        return;
+      }
+      doubaoTimer = setTimeout(pollDoubao, 700);
+    }).catch(function (err) {
+      doubaoTimer = setTimeout(pollDoubao, 1500);
+      var msg = el('doubao-msg');
+      msg.className = 'msg err';
+      msg.textContent = '查询进度失败:' + ((err && err.message) || '');
+    });
+  }
+
+  el('doubao-btn').addEventListener('click', function () {
+    var urls = parseBatchURLs(el('doubao-urls').value);
+    var msg = el('doubao-msg');
+    if (urls.length === 0) { msg.className = 'msg err'; msg.textContent = '请先粘贴豆包分享链接'; return; }
+    if (doubaoTimer) { clearTimeout(doubaoTimer); doubaoTimer = null; }
+    el('doubao-btn').disabled = true;
+    msg.className = 'msg';
+    msg.textContent = '创建任务中…';
+    fetch('/api/doubao/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: urls })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) { throw new Error(res.error || '创建任务失败'); }
+      doubaoJobId = res.job_id;
+      el('doubao-cancel-btn').style.display = '';
+      msg.textContent = '开始下载 ' + res.total + ' 个链接…';
+      pollDoubao();
+    }).catch(function (err) {
+      el('doubao-btn').disabled = false;
+      msg.className = 'msg err';
+      msg.textContent = '✗ ' + ((err && err.message) || '请求失败');
+    });
+  });
+
+  el('doubao-cancel-btn').addEventListener('click', function () {
+    if (!doubaoJobId) { return; }
+    fetch('/api/doubao/cancel?id=' + encodeURIComponent(doubaoJobId), { method: 'POST' }).catch(function () {});
+  });
+
+  // ---------- ChatGPT 分享下载 ----------
+  var chatgptJobId = '';
+  var chatgptTimer = null;
+
+  function renderChatGPT(job) {
+    var box = el('chatgpt-progress');
+    box.style.display = 'block';
+    var lines = ['任务 ' + job.id + ' · 共 ' + job.total + ' 个 · 完成 ' + job.done +
+      ' · 成功 ' + job.ok + ' · 已存在 ' + job.skipped + ' · 失败 ' + job.failed, ''];
+    (job.items || []).forEach(function (it) {
+      lines.push(batchStateIcon(it.state) + ' ' + (it.title || it.url) +
+        (it.images ? '(' + it.images + ' 张图)' : '') + (it.error ? ' — ' + it.error : ''));
+    });
+    box.textContent = lines.join('\n');
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function chatgptDownloadZip(id) {
+    fetch('/api/chatgpt/zip?id=' + encodeURIComponent(id)).then(function (r) {
+      var ct = (r.headers.get('Content-Type') || '').toLowerCase();
+      if (ct.indexOf('application/json') !== -1) {
+        return r.json().then(function (j) { throw new Error((j && j.error) || '打包失败'); });
+      }
+      if (!r.ok) { throw new Error('HTTP ' + r.status); }
+      var cd = r.headers.get('Content-Disposition') || '';
+      var m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+      var name = 'chatgpt-batch.zip';
+      if (m) { try { name = decodeURIComponent(m[1]); } catch (e) {} }
+      return r.blob().then(function (b) { return { blob: b, name: name }; });
+    }).then(function (out) {
+      var url = URL.createObjectURL(out.blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = out.name;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () {
+        if (a.parentNode) { a.parentNode.removeChild(a); }
+        URL.revokeObjectURL(url);
+      }, 10000);
+    }).catch(function (err) {
+      var msg = el('chatgpt-msg');
+      msg.className = 'msg err';
+      msg.textContent = '✗ 打包失败:' + ((err && err.message) || '');
+    });
+  }
+
+  function pollChatGPT() {
+    if (!chatgptJobId) { return; }
+    fetch('/api/chatgpt/status?id=' + encodeURIComponent(chatgptJobId)).then(function (r) {
+      return r.json();
+    }).then(function (res) {
+      if (!res.ok || !res.job) { throw new Error((res && res.error) || '任务丢失'); }
+      var job = res.job;
+      renderChatGPT(job);
+      var msg = el('chatgpt-msg');
+      msg.className = 'msg';
+      msg.textContent = '下载中 ' + job.done + '/' + job.total + ' …';
+      if (job.finished) {
+        chatgptJobId = '';
+        el('chatgpt-btn').disabled = false;
+        el('chatgpt-cancel-btn').style.display = 'none';
+        var doneOK = job.ok + job.skipped;
+        if (doneOK > 0) {
+          msg.className = 'msg ok';
+          msg.textContent = '✓ 成功 ' + job.ok + ' 个' + (job.skipped ? ' · 已存在 ' + job.skipped + ' 个' : '') +
+            (job.failed ? ' · 失败 ' + job.failed + ' 个' : '') + ',正在打包 ZIP…';
+          chatgptDownloadZip(job.id);
+        } else {
+          msg.className = 'msg err';
+          msg.textContent = '✗ 全部失败';
+        }
+        setTimeout(loadList, 500);
+        return;
+      }
+      chatgptTimer = setTimeout(pollChatGPT, 700);
+    }).catch(function (err) {
+      chatgptTimer = setTimeout(pollChatGPT, 1500);
+      var msg = el('chatgpt-msg');
+      msg.className = 'msg err';
+      msg.textContent = '查询进度失败:' + ((err && err.message) || '');
+    });
+  }
+
+  el('chatgpt-btn').addEventListener('click', function () {
+    var urls = parseBatchURLs(el('chatgpt-urls').value);
+    var msg = el('chatgpt-msg');
+    if (urls.length === 0) { msg.className = 'msg err'; msg.textContent = '请先粘贴 ChatGPT 分享链接'; return; }
+    if (chatgptTimer) { clearTimeout(chatgptTimer); chatgptTimer = null; }
+    el('chatgpt-btn').disabled = true;
+    msg.className = 'msg';
+    msg.textContent = '创建任务中…';
+    fetch('/api/chatgpt/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: urls })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res.ok) { throw new Error(res.error || '创建任务失败'); }
+      chatgptJobId = res.job_id;
+      el('chatgpt-cancel-btn').style.display = '';
+      msg.textContent = '开始下载 ' + res.total + ' 个链接…';
+      pollChatGPT();
+    }).catch(function (err) {
+      el('chatgpt-btn').disabled = false;
+      msg.className = 'msg err';
+      msg.textContent = '✗ ' + ((err && err.message) || '请求失败');
+    });
+  });
+
+  el('chatgpt-cancel-btn').addEventListener('click', function () {
+    if (!chatgptJobId) { return; }
+    fetch('/api/chatgpt/cancel?id=' + encodeURIComponent(chatgptJobId), { method: 'POST' }).catch(function () {});
+  });
+
+  // ---------- 公众号最新文章(自动捕获) ----------
+  var acctItems = [];
+
+  function loadAccounts() {
+    fetch('/api/accounts').then(function (r) { return r.json(); }).then(function (res) {
+      var sel = el('acct-select');
+      var prev = sel.value;
+      var list = (res && res.accounts) || [];
+      if (list.length === 0) {
+        sel.innerHTML = '<option value="">(尚未捕获到公众号)</option>';
+        return;
+      }
+      var html = '';
+      list.forEach(function (a) {
+        var name = a.nickname || a.biz;
+        if (!a.usable) { name += '(凭证不完整)'; }
+        html += '<option value="' + esc(a.biz) + '">' + esc(name) + '</option>';
+      });
+      sel.innerHTML = html;
+      if (prev) { sel.value = prev; }
+    }).catch(function () {});
+  }
+
+  function renderAccounts(items) {
+    acctItems = items || [];
+    var box = el('acct-list');
+    if (acctItems.length === 0) {
+      box.innerHTML = '<div class="acct-empty">没有拉到文章</div>';
+      updateAcctDownload();
+      return;
+    }
+    var html = '';
+    acctItems.forEach(function (it, i) {
+      html += '<label class="acct-item">' +
+        '<input type="checkbox" data-i="' + i + '" checked>' +
+        '<span class="t">' + esc(it.title || it.url) + '</span>' +
+        '<span class="d">' + esc(it.datetime || '') + '</span></label>';
+    });
+    box.innerHTML = html;
+    updateAcctDownload();
+  }
+
+  function selectedAcctItems() {
+    var out = [];
+    var boxes = document.querySelectorAll('#acct-list input[type=checkbox]');
+    for (var i = 0; i < boxes.length; i++) {
+      if (!boxes[i].checked) { continue; }
+      var idx = parseInt(boxes[i].getAttribute('data-i'), 10);
+      if (acctItems[idx]) { out.push(acctItems[idx]); }
+    }
+    return out;
+  }
+
+  function updateAcctDownload() {
+    var n = selectedAcctItems().length;
+    var btn = el('acct-download');
+    btn.textContent = '下载选中(' + n + ')';
+    btn.disabled = n === 0;
+    btn.style.opacity = n ? '1' : '.5';
+  }
+
+  el('acct-select').addEventListener('change', function () {
+    acctItems = [];
+    el('acct-list').innerHTML = '';
+    el('acct-msg').textContent = '';
+    updateAcctDownload();
+  });
+
+  el('acct-list').addEventListener('change', updateAcctDownload);
+
+  el('acct-fetch').addEventListener('click', function () {
+    var biz = el('acct-select').value;
+    var msg = el('acct-msg');
+    if (!biz) { msg.className = 'msg err'; msg.textContent = '还没有捕获到公众号:先在微信里打开它的一篇文章'; return; }
+    var btn = el('acct-fetch');
+    btn.disabled = true;
+    msg.className = 'msg';
+    msg.textContent = '拉取中…';
+    fetch('/api/accounts/latest?limit=30&biz=' + encodeURIComponent(biz))
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res.ok) {
+          msg.className = 'msg err';
+          msg.textContent = '✗ ' + (res.error || '拉取失败');
+          return;
+        }
+        msg.className = 'msg ok';
+        msg.textContent = '✓ 拉到 ' + res.count + ' 篇';
+        renderAccounts(res.items);
+      })
+      .catch(function () {
+        msg.className = 'msg err';
+        msg.textContent = '✗ 请求失败';
+      })
+      .then(function () { btn.disabled = false; });
+  });
+
+  el('acct-download').addEventListener('click', function () {
+    var items = selectedAcctItems();
+    if (items.length === 0) { return; }
+    startBatchRequest(items.map(function (it) { return it.url; }));
+  });
+
+  loadAccounts();
+  setInterval(loadAccounts, 10000);
 
   startPolling();
 })();

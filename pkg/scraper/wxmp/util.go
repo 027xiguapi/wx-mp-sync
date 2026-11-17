@@ -67,9 +67,17 @@ func formatPublishTime(createTime string, unixTime int) string {
 	return ""
 }
 
-// isVerificationPage 判断响应是否为微信的"环境异常"验证页。
+// isVerificationPage 判断响应是否为微信的验证/拦截页(环境异常、安全验证等)。
+// 这类页面 HTTP 状态是 200,但正文里没有文章内容,必须当作失败处理,
+// 否则会归档出一篇"空文章"。
 func isVerificationPage(body string) bool {
-	return strings.Contains(body, "环境异常") && strings.Contains(body, "完成验证后即可继续访问")
+	if strings.Contains(body, "环境异常") && strings.Contains(body, "完成验证后即可继续访问") {
+		return true
+	}
+	if strings.Contains(body, "secitptpage/verify") {
+		return true
+	}
+	return false
 }
 
 // escapeHTML 对字符串做 HTML 转义。

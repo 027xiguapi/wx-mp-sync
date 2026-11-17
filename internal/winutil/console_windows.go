@@ -8,10 +8,10 @@ import (
 
 // 控制台控制事件类型(wincon.h)。
 const (
-	ctrlCEvent       = 0
-	ctrlBreakEvent   = 1
-	ctrlCloseEvent   = 2 // 用户点击控制台窗口的关闭按钮(X)
-	ctrlLogoffEvent  = 5
+	ctrlCEvent        = 0
+	ctrlBreakEvent    = 1
+	ctrlCloseEvent    = 2 // 用户点击控制台窗口的关闭按钮(X)
+	ctrlLogoffEvent   = 5
 	ctrlShutdownEvent = 6
 )
 

@@ -35,9 +35,9 @@ func NewArticleSaver(cfg *config.Config, st *store.Store, logger *zerolog.Logger
 
 // SaveRequest 是注入按钮 / 手动同步 POST 的载荷。
 type SaveRequest struct {
-	URL       string          `json:"url"`
-	Title     string          `json:"title"`
-	Nickname  string          `json:"nickname"`
+	URL        string          `json:"url"`
+	Title      string          `json:"title"`
+	Nickname   string          `json:"nickname"`
 	CgiDataNew json.RawMessage `json:"cgiDataNew"`
 }
 
@@ -58,7 +58,18 @@ func (s *ArticleSaver) SaveFromCgiData(rawURL string, raw json.RawMessage) (stri
 }
 
 // SaveFromURL 按 URL 抓取并归档文章。
+// 若传入的是搜狗微信的 /link 跳转链接,会先还原成真实的公众号文章链接。
 func (s *ArticleSaver) SaveFromURL(rawURL string) (string, bool, *wxmp.WechatOfficialArticle, error) {
+	if wxmp.IsSogouLink(rawURL) {
+		resolved, err := wxmp.ResolveSogouLink(rawURL)
+		if err != nil {
+			return "", false, nil, fmt.Errorf("还原搜狗文章链接失败: %w", err)
+		}
+		if s.Logger != nil {
+			s.Logger.Info().Str("from", rawURL).Str("to", resolved).Msg("已还原搜狗跳转链接")
+		}
+		rawURL = resolved
+	}
 	article, err := s.dl.FetchArticle(rawURL)
 	if err != nil {
 		return "", false, nil, err
@@ -75,9 +86,11 @@ func (s *ArticleSaver) saveArticle(article *wxmp.WechatOfficialArticle, rawURL, 
 	externalID := articleExternalID(article, rawURL)
 	if s.Store.Has(externalID) {
 		if rec, ok := s.Store.Get(externalID); ok && rec.Dir != "" {
-			return rec.Dir, true, article, nil
+			// 目录可能被用户手动删除,存在时才复用,否则重新归档。
+			if st, statErr := os.Stat(rec.Dir); statErr == nil && st.IsDir() {
+				return rec.Dir, true, article, nil
+			}
 		}
-		return "", true, article, nil
 	}
 
 	dir, err := articleDirFor(s.Cfg, accountName, article)

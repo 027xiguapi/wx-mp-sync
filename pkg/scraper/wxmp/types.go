@@ -43,68 +43,68 @@ type CgiDataNew struct {
 		CookieCount int    `json:"cookie_count"`
 		SessionID   string `json:"sessionid"`
 	} `json:"base_resp"`
-	UserName        string      `json:"user_name"`
-	NickName        string      `json:"nick_name"`
-	RoundHeadImg    string      `json:"round_head_img"`
-	Title           string      `json:"title"`
-	Desc            string      `json:"desc"`
-	ContentNoEncode string      `json:"content_noencode"`
-	CreateTime      string      `json:"create_time"`
-	CdnURL          string      `json:"cdn_url"`
-	Link            string      `json:"link"`
-	SourceURL       string      `json:"source_url"`
-	CanShare        int         `json:"can_share"`
-	Alias           string      `json:"alias"`
-	Type            int         `json:"type"`
-	Author          string      `json:"author"`
-	IsLimitUser     int         `json:"is_limit_user"`
-	ShowCoverPic    int         `json:"show_cover_pic"`
-	AdvertisementNum int        `json:"advertisement_num"`
-	AdvertisementInfo []any     `json:"advertisement_info"`
-	OriCreateTime   FlexibleInt `json:"ori_create_time"`
-	UserUin         FlexibleInt `json:"user_uin"`
-	TotalItemNum    int         `json:"total_item_num"`
-	IsAsync         int         `json:"is_async"`
-	CommentID       string      `json:"comment_id"`
-	ImgFormat       string      `json:"img_format"`
-	SvrTime         FlexibleInt `json:"svr_time"`
-	CopyrightInfo   struct {
+	UserName          string      `json:"user_name"`
+	NickName          string      `json:"nick_name"`
+	RoundHeadImg      string      `json:"round_head_img"`
+	Title             string      `json:"title"`
+	Desc              string      `json:"desc"`
+	ContentNoEncode   string      `json:"content_noencode"`
+	CreateTime        string      `json:"create_time"`
+	CdnURL            string      `json:"cdn_url"`
+	Link              string      `json:"link"`
+	SourceURL         string      `json:"source_url"`
+	CanShare          int         `json:"can_share"`
+	Alias             string      `json:"alias"`
+	Type              int         `json:"type"`
+	Author            string      `json:"author"`
+	IsLimitUser       int         `json:"is_limit_user"`
+	ShowCoverPic      int         `json:"show_cover_pic"`
+	AdvertisementNum  int         `json:"advertisement_num"`
+	AdvertisementInfo []any       `json:"advertisement_info"`
+	OriCreateTime     FlexibleInt `json:"ori_create_time"`
+	UserUin           FlexibleInt `json:"user_uin"`
+	TotalItemNum      int         `json:"total_item_num"`
+	IsAsync           int         `json:"is_async"`
+	CommentID         string      `json:"comment_id"`
+	ImgFormat         string      `json:"img_format"`
+	SvrTime           FlexibleInt `json:"svr_time"`
+	CopyrightInfo     struct {
 		CopyrightStat      int `json:"copyright_stat"`
 		IsCartoonCopyright int `json:"is_cartoon_copyright"`
 	} `json:"copyright_info"`
-	CanReward        int    `json:"can_reward"`
-	Signature        string `json:"signature"`
-	RewardWording    string `json:"reward_wording"`
-	InMm             int    `json:"in_mm"`
-	AppID            string `json:"app_id"`
-	ShowComment      int    `json:"show_comment"`
-	CanUsePage       int    `json:"can_use_page"`
-	HdHeadImg        string `json:"hd_head_img"`
-	DelReasonID      int    `json:"del_reason_id"`
-	SrcID            string `json:"srcid"`
-	IsWxgStuffUin    int    `json:"is_wxg_stuff_uin"`
-	NeedReportCost   int    `json:"need_report_cost"`
-	BizUin           string `json:"bizuin"`
+	CanReward        int         `json:"can_reward"`
+	Signature        string      `json:"signature"`
+	RewardWording    string      `json:"reward_wording"`
+	InMm             int         `json:"in_mm"`
+	AppID            string      `json:"app_id"`
+	ShowComment      int         `json:"show_comment"`
+	CanUsePage       int         `json:"can_use_page"`
+	HdHeadImg        string      `json:"hd_head_img"`
+	DelReasonID      int         `json:"del_reason_id"`
+	SrcID            string      `json:"srcid"`
+	IsWxgStuffUin    int         `json:"is_wxg_stuff_uin"`
+	NeedReportCost   int         `json:"need_report_cost"`
+	BizUin           string      `json:"bizuin"`
 	Mid              FlexibleInt `json:"mid"`
 	Idx              FlexibleInt `json:"idx"`
-	Sn               string `json:"sn"`
-	UseTxVideoPlayer int    `json:"use_tx_video_player"`
-	IsOnlyRead       int    `json:"is_only_read"`
-	ReqID            string `json:"req_id"`
-	UseOuterLink     int    `json:"use_outer_link"`
-	BanScene         int    `json:"ban_scene"`
-	CspNonceStr      int    `json:"csp_nonce_str"`
+	Sn               string      `json:"sn"`
+	UseTxVideoPlayer int         `json:"use_tx_video_player"`
+	IsOnlyRead       int         `json:"is_only_read"`
+	ReqID            string      `json:"req_id"`
+	UseOuterLink     int         `json:"use_outer_link"`
+	BanScene         int         `json:"ban_scene"`
+	CspNonceStr      int         `json:"csp_nonce_str"`
 	MsgDailyIdx      FlexibleInt `json:"msg_daily_idx"`
-	OriHeadImgURL    string `json:"ori_head_img_url"`
+	OriHeadImgURL    string      `json:"ori_head_img_url"`
 	FilterTime       FlexibleInt `json:"filter_time"`
-	AppmsgFeFilter   string `json:"appmsg_fe_filter"`
-	IsLogin          int    `json:"is_login"`
-	RewardMoney      int    `json:"reward_money"`
-	PageType         int    `json:"page_type"`
-	ItemShowType     int    `json:"item_show_type"`
-	VoiceInAppmsg    []any  `json:"voice_in_appmsg"`
+	AppmsgFeFilter   string      `json:"appmsg_fe_filter"`
+	IsLogin          int         `json:"is_login"`
+	RewardMoney      int         `json:"reward_money"`
+	PageType         int         `json:"page_type"`
+	ItemShowType     int         `json:"item_show_type"`
+	VoiceInAppmsg    []any       `json:"voice_in_appmsg"`
 	VideoPageInfo    struct {
-		MpVideoTransInfo []any `json:"mp_video_trans_info"`
+		MpVideoTransInfo []any    `json:"mp_video_trans_info"`
 		DramaVideoInfo   struct{} `json:"drama_video_info"`
 		DramaInfo        struct{} `json:"drama_info"`
 	} `json:"video_page_info"`
@@ -160,12 +160,12 @@ type PictureLivePhoto struct {
 
 // PicturePageInfo 描述图集文章中的一张图片。
 type PicturePageInfo struct {
-	CdnURL      string           `json:"cdn_url"`
-	Width       int              `json:"width"`
-	Height      int              `json:"height"`
-	ThemeColor  string           `json:"theme_color"`
-	LivePhoto   PictureLivePhoto `json:"live_photo"`
-	IsQrCode    int              `json:"is_qr_code"`
+	CdnURL     string           `json:"cdn_url"`
+	Width      int              `json:"width"`
+	Height     int              `json:"height"`
+	ThemeColor string           `json:"theme_color"`
+	LivePhoto  PictureLivePhoto `json:"live_photo"`
+	IsQrCode   int              `json:"is_qr_code"`
 }
 
 // WechatOfficialArticle 是抓取解析后的文章统一结构。

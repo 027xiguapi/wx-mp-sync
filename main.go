@@ -13,7 +13,7 @@ import (
 )
 
 // AppVer 是构建时注入的版本号。
-var AppVer = "260812"
+var AppVer = "261104"
 
 func main() {
 	logger, logFile, logPath, err := newAppLogger()

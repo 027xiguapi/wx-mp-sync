@@ -7,6 +7,7 @@ require (
 	github.com/PuerkitoBio/goquery v1.12.0
 	github.com/dop251/goja v0.0.0-20260806115107-493f22071ef6
 	github.com/ltaoo/echo v0.12.0
+	github.com/lxn/walk v0.0.0-20210112085537-c389da54e794
 	github.com/rs/zerolog v1.35.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
@@ -28,6 +29,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/native v1.1.0 // indirect
 	github.com/klauspost/compress v1.15.15 // indirect
+	github.com/lxn/win v0.0.0-20210218163916-a377121e959e // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mdlayher/netlink v1.7.2 // indirect
@@ -52,4 +54,5 @@ require (
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/text v0.35.0 // indirect
 	golang.org/x/time v0.7.0 // indirect
+	gopkg.in/Knetic/govaluate.v3 v3.0.0 // indirect
 )
