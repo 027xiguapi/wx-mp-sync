@@ -106,14 +106,20 @@ func Sync(ctx context.Context, forum *naicha.Client, scraper *xhs.Client, note *
 		}
 	}
 
-	images, failed, err := DownloadImages(ctx, scraper, note, maxImages)
-	if err != nil {
-		result.Publish = naicha.PublishResult{Message: err.Error()}
-		return result
+	if forum.BotReady() {
+		// 机器人接口不能上传图片,直接引用小红书 CDN 的原图地址。
+		post.Images = ImageLinks(note.Images, maxImages)
+		result.Images = len(post.Images)
+	} else {
+		images, failed, err := DownloadImages(ctx, scraper, note, maxImages)
+		if err != nil {
+			result.Publish = naicha.PublishResult{Message: err.Error()}
+			return result
+		}
+		post.Images = images
+		result.Images = len(images)
+		result.FailedImages = failed
 	}
-	post.Images = images
-	result.Images = len(images)
-	result.FailedImages = failed
 
 	result.Publish = forum.Publish(ctx, post, force)
 	result.FailedImages += result.Publish.FailedImages
@@ -170,6 +176,31 @@ func DownloadImages(ctx context.Context, scraper *xhs.Client, note *xhs.Note, li
 		return nil, int(atomic.LoadInt32(&failed)), fmt.Errorf("小红书图片全部下载失败,请稍后重试")
 	}
 	return images, int(atomic.LoadInt32(&failed)), nil
+}
+
+// ImageLinks 取前 limit 张图片的原图地址,供机器人接口以 Markdown 引用。
+func ImageLinks(images []xhs.Image, limit int) []naicha.PostImage {
+	if len(images) == 0 {
+		return nil
+	}
+	if limit <= 0 || limit > maxImages {
+		limit = maxImages
+	}
+	if len(images) > limit {
+		images = images[:limit]
+	}
+	out := make([]naicha.PostImage, 0, len(images))
+	for i, image := range images {
+		u := strings.TrimSpace(image.URL)
+		if u == "" {
+			continue
+		}
+		out = append(out, naicha.PostImage{
+			Filename: fmt.Sprintf("xhs-%02d.jpg", i+1),
+			URL:      u,
+		})
+	}
+	return out
 }
 
 // stripXHSHashtags 去掉小红书正文里的 #话题[话题]# 标记。

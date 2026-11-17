@@ -37,6 +37,11 @@ type Config struct {
 	Password string // 管理员密码
 	Cookie   string // 可选:bbs_session 的值,或完整的 Cookie 请求头;配置后跳过登录
 	Board    string // 发帖分类 boardSlug,默认 discussion
+
+	// 机器人模式:配置后优先走 POST /api/bot/posts(请求头 x-bot-secret),
+	// 不需要管理员登录;该接口不支持上传图片,图片以原图链接写入正文。
+	BotSecret string // 论坛服务端环境变量 BOT_API_SECRET 的值
+	Bot       string // 机器人账号:用户名、昵称或 ID
 }
 
 // Client 负责把归档文章发布到奶茶圈。
@@ -85,6 +90,9 @@ func New(cfg Config, logger *zerolog.Logger) *Client {
 		cfg.Board = "discussion"
 	}
 	cfg.Cookie = normalizeSessionCookie(cfg.Cookie)
+	// 机器人密钥去掉首尾空白(从配置文件粘贴时容易带上换行/空格)。
+	cfg.BotSecret = strings.TrimSpace(cfg.BotSecret)
+	cfg.Bot = strings.TrimSpace(cfg.Bot)
 	if logger == nil {
 		l := zerolog.Nop()
 		logger = &l

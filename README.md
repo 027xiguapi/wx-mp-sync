@@ -428,6 +428,24 @@ articles/
 - 不启动 MITM 代理,不安装证书;
 - 不需要 `wx-mp-sync.exe` 正在运行。
 
+### 同步到奶茶圈论坛
+
+窗口里的「同步目标」输入框可以把同一批链接直接发布到任意论坛项目(默认 `http://localhost:3000`),走论坛的机器人接口 `POST /api/bot/posts`:
+
+1. 填写「同步目标」地址和发帖分类(默认 `discussion`,以论坛后台的分类 `boardSlug` 为准)。目标地址可以自定义:支持 `http`/`https`,省略 `http://` 会自动补全,末尾斜杠会被去掉,例如 `localhost:3000`、`192.168.1.10:3000`、`https://bbs.example.com/naicha`;
+2. 填写「机器人账号」(论坛后台创建的机器人用户名、昵称或 ID)和 `BOT_API_SECRET`。密钥必须与论坛服务 `.env` 里的 `BOT_API_SECRET` 完全一致,请求时放在 `x-bot-secret` 请求头;
+3. 「标签」用逗号分隔,可选,「小红书」会自动带上;
+4. 点「同步到论坛」,程序会逐条抓取笔记正文并创建帖子,日志区显示每篇的结果。
+
+说明:
+
+- 论坛服务需要先在 `.env` 里配置 `BOT_API_SECRET` 并重启,否则接口返回 503;同时在论坛后台创建机器人账号(`isBot=true`),否则会提示机器人账号不存在;
+- 机器人接口不支持上传图片,配图会以小红书原图链接(Markdown 图片)写入正文;
+- 帖子正文保留笔记描述、去掉 `#话题[话题]#` 标记,最多 18 张配图;
+- 按 `xhs:<noteId>` 去重,重复点击只会显示「已同步过」;状态文件在 `%APPDATA%\xhs-downloader\naicha_state.json`;
+- 论坛设置和保存目录一起保存在 `%APPDATA%\xhs-downloader\config.json`。`BOT_API_SECRET` 是明文保存的,请注意不要把这个文件发给别人;
+- 同步前请确保论坛服务已经启动。
+
 构建:
 
 ```bash

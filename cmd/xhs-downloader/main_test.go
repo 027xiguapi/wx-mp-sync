@@ -39,3 +39,55 @@ func TestDefaultOutputDir(t *testing.T) {
 		t.Fatal("默认保存目录为空")
 	}
 }
+
+func TestParseTagList(t *testing.T) {
+	tags := parseTagList(" 奶茶, 探店,奶茶；咖啡、新店\n")
+	want := []string{"奶茶", "探店", "咖啡", "新店"}
+	if len(tags) != len(want) {
+		t.Fatalf("标签 = %v, 期望 %v", tags, want)
+	}
+	for i := range want {
+		if tags[i] != want[i] {
+			t.Errorf("tags[%d] = %q, 期望 %q", i, tags[i], want[i])
+		}
+	}
+	if got := parseTagList("  "); len(got) != 0 {
+		t.Errorf("空白输入应返回空标签,实际 %v", got)
+	}
+}
+
+func TestNormalizeAPIBase(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"", defaultForumAPIBase},
+		{"   ", defaultForumAPIBase},
+		{"localhost:3000", "http://localhost:3000"},
+		{"http://localhost:3000/", "http://localhost:3000"},
+		{"https://bbs.example.com/naicha/", "https://bbs.example.com/naicha"},
+		{"192.168.1.10:3000", "http://192.168.1.10:3000"},
+	}
+	for _, c := range cases {
+		if got := normalizeAPIBase(c.in); got != c.want {
+			t.Errorf("normalizeAPIBase(%q) = %q, 期望 %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestValidateAPIBase(t *testing.T) {
+	for _, raw := range []string{
+		"http://localhost:3000",
+		"https://bbs.example.com/naicha",
+		"http://192.168.1.10:3000",
+	} {
+		if err := validateAPIBase(raw); err != nil {
+			t.Errorf("validateAPIBase(%q) 应通过,实际 %v", raw, err)
+		}
+	}
+	for _, raw := range []string{"ftp://example.com", "http://", ""} {
+		if err := validateAPIBase(raw); err == nil {
+			t.Errorf("validateAPIBase(%q) 应失败", raw)
+		}
+	}
+}

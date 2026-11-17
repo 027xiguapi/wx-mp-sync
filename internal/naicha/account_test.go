@@ -271,3 +271,105 @@ func TestLoginCaptchaError(t *testing.T) {
 		t.Fatalf("unexpected message: %s", res.Message)
 	}
 }
+
+func TestPublishWithBotSecret(t *testing.T) {
+	var calls int32
+	const secret = "bot-secret-123"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/bot/posts" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		atomic.AddInt32(&calls, 1)
+		if got := r.Header.Get("x-bot-secret"); got != secret {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = io.WriteString(w, `{"code":401,"message":"机器人 API 密钥无效"}`)
+			return
+		}
+		var body struct {
+			Bot       string   `json:"bot"`
+			Title     string   `json:"title"`
+			Content   string   `json:"content"`
+			BoardSlug string   `json:"boardSlug"`
+			Tags      []string `json:"manualTags"`
+			CoverPath string   `json:"coverPath"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.Bot != "bot-account" || body.BoardSlug != "discussion" || body.Title == "" {
+			t.Errorf("unexpected bot payload: %+v", body)
+		}
+		if len(body.Tags) != 2 || body.CoverPath != "" {
+			t.Errorf("unexpected tags/cover: %+v", body)
+		}
+		if !strings.Contains(body.Content, "![图1](https://sns-img.example.com/a.jpg)") {
+			t.Errorf("content missing image link: %q", body.Content)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"code":    0,
+			"message": "发布成功",
+			"data":    map[string]any{"id": "bot-post-1", "status": "NORMAL", "url": "/post/bot-post-1"},
+		})
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		APIBase:    server.URL,
+		Bot:        "bot-account",
+		BotSecret:  secret,
+		Board:      "discussion",
+		TimeoutSec: 10,
+		StatePath:  filepath.Join(t.TempDir(), "state.json"),
+	}, testLogger())
+	if !client.BotReady() {
+		t.Fatal("BotReady() = false")
+	}
+
+	post := &PublishPost{
+		Title:     "小红书笔记标题",
+		Content:   "这是小红书笔记的正文内容,用来测试机器人发帖。",
+		Tags:      []string{"小红书", "奶茶"},
+		DedupeKey: "xhs:bot-abc",
+		Images:    []PostImage{{URL: "https://sns-img.example.com/a.jpg"}},
+	}
+	res := client.Publish(context.Background(), post, false)
+	if !res.OK {
+		t.Fatalf("Publish failed: %s", res.Message)
+	}
+	if res.ID != "bot-post-1" || res.URL != server.URL+"/post/bot-post-1" || res.Images != 1 {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+
+	// 去重:再次发布不应再请求论坛。
+	res = client.Publish(context.Background(), post, false)
+	if !res.OK || !res.Duplicate {
+		t.Fatalf("expected duplicate: %+v", res)
+	}
+	if atomic.LoadInt32(&calls) != 1 {
+		t.Fatalf("bot endpoint called %d times, want 1", calls)
+	}
+}
+
+func TestPublishWithBotSecretRejected(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = io.WriteString(w, `{"code":401,"message":"机器人 API 密钥无效"}`)
+	}))
+	defer server.Close()
+
+	client := New(Config{
+		APIBase:    server.URL,
+		Bot:        "bot-account",
+		BotSecret:  "wrong",
+		TimeoutSec: 5,
+	}, testLogger())
+	res := client.Publish(context.Background(), &PublishPost{
+		Title:   "测试标题",
+		Content: "正文内容足够长,用于测试密钥错误提示。",
+	}, true)
+	if res.OK {
+		t.Fatal("expected failure")
+	}
+	if !strings.Contains(res.Message, "BOT_API_SECRET") {
+		t.Fatalf("unexpected message: %s", res.Message)
+	}
+}

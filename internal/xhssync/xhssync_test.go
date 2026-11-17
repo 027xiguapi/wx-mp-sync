@@ -3,11 +3,16 @@ package xhssync
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/rs/zerolog"
+
+	"wx-mp-sync/internal/naicha"
 	"wx-mp-sync/pkg/scraper/xhs"
 )
 
@@ -163,5 +168,87 @@ func TestDownloadImagesAllFailed(t *testing.T) {
 	}, 18)
 	if err == nil || failed != 1 {
 		t.Fatalf("expected all-failed error, got err=%v failed=%d", err, failed)
+	}
+}
+
+func TestImageLinks(t *testing.T) {
+	images := []xhs.Image{
+		{URL: "https://sns-img.example.com/a.jpg"},
+		{URL: "  "},
+		{URL: " https://sns-img.example.com/c.jpg "},
+	}
+	got := ImageLinks(images, 0)
+	if len(got) != 2 {
+		t.Fatalf("ImageLinks = %d, 期望 2 (%+v)", len(got), got)
+	}
+	if got[0].URL != "https://sns-img.example.com/a.jpg" || got[1].URL != "https://sns-img.example.com/c.jpg" {
+		t.Fatalf("unexpected links: %+v", got)
+	}
+	if got[0].Data != nil {
+		t.Fatal("机器人模式不应下载图片数据")
+	}
+
+	if links := ImageLinks(images, 1); len(links) != 1 {
+		t.Fatalf("limit 未生效: %d", len(links))
+	}
+	if links := ImageLinks(nil, 8); links != nil {
+		t.Fatalf("空输入应返回 nil,实际 %+v", links)
+	}
+}
+
+func TestSyncWithBotModeEmbedsImageLinks(t *testing.T) {
+	const secret = "bot-secret"
+	var gotContent string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/bot/posts" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if r.Header.Get("x-bot-secret") != secret {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		var body struct {
+			Title   string `json:"title"`
+			Content string `json:"content"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		gotContent = body.Content
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"code": 0,
+			"data": map[string]any{"id": "post-1", "status": "NORMAL", "url": "/post/post-1"},
+		})
+	}))
+	defer server.Close()
+
+	logger := zerolog.Nop()
+	forum := naicha.New(naicha.Config{
+		APIBase:    server.URL,
+		Bot:        "bot-account",
+		BotSecret:  secret,
+		Board:      "discussion",
+		TimeoutSec: 5,
+		StatePath:  filepath.Join(t.TempDir(), "state.json"),
+	}, &logger)
+
+	note := &xhs.Note{
+		ID:    "66f1a2b3c4d5e6f708192a3b",
+		Title: "一杯好喝的奶茶",
+		Desc:  "今天试了新出的桂花乌龙,三分糖刚刚好。",
+		Images: []xhs.Image{
+			{URL: "https://sns-img.example.com/a.jpg"},
+			{URL: "https://sns-img.example.com/b.jpg"},
+		},
+	}
+	res := Sync(context.Background(), forum, xhs.NewClient(), note, Options{Board: "discussion"}, false)
+	if !res.Publish.OK {
+		t.Fatalf("Sync failed: %s", res.Publish.Message)
+	}
+	if res.Images != 2 || res.FailedImages != 0 {
+		t.Fatalf("images=%d failed=%d", res.Images, res.FailedImages)
+	}
+	if !strings.Contains(gotContent, "![图1](https://sns-img.example.com/a.jpg)") ||
+		!strings.Contains(gotContent, "![图2](https://sns-img.example.com/b.jpg)") {
+		t.Fatalf("正文缺少原图链接: %q", gotContent)
 	}
 }
