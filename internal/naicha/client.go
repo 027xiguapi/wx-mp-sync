@@ -36,9 +36,9 @@ type Config struct {
 	Username string // 管理员用户名或邮箱
 	Password string // 管理员密码
 	Cookie   string // 可选:bbs_session 的值,或完整的 Cookie 请求头;配置后跳过登录
-	Board    string // 发帖分类 boardSlug,默认 discussion
+	Board    string // 发帖分类 boardSlug,默认 new-releases
 
-	// 机器人模式:配置后优先走 POST /api/bot/posts(请求头 x-bot-secret),
+	// 机器人模式:配置后优先走 POST /api/bot/posts(请求头 X-Bot-Secret),
 	// 不需要管理员登录;该接口不支持上传图片,图片以原图链接写入正文。
 	BotSecret string // 论坛服务端环境变量 BOT_API_SECRET 的值
 	Bot       string // 机器人账号:用户名、昵称或 ID
@@ -87,7 +87,7 @@ func New(cfg Config, logger *zerolog.Logger) *Client {
 	// 密码保持原样(首尾空格也可能是密码的一部分)。
 	cfg.Board = strings.TrimSpace(cfg.Board)
 	if cfg.Board == "" {
-		cfg.Board = "discussion"
+		cfg.Board = "new-releases"
 	}
 	cfg.Cookie = normalizeSessionCookie(cfg.Cookie)
 	// 机器人密钥去掉首尾空白(从配置文件粘贴时容易带上换行/空格)。

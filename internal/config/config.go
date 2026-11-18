@@ -90,7 +90,7 @@ type NaichaConfig struct {
 	Username string `mapstructure:"username" yaml:"username"`
 	Password string `mapstructure:"password" yaml:"password"`
 	Cookie   string `mapstructure:"cookie" yaml:"cookie"` // 可选:bbs_session 的值或完整 Cookie
-	Board    string `mapstructure:"board" yaml:"board"`   // 发帖分类 boardSlug,默认 discussion
+	Board    string `mapstructure:"board" yaml:"board"`   // 小红书发帖分类 boardSlug,默认 new-releases
 
 	XHSEnabled *bool    `mapstructure:"xhs_enabled" yaml:"xhs_enabled"` // 默认 true
 	XHSTags    []string `mapstructure:"xhs_tags" yaml:"xhs_tags"`

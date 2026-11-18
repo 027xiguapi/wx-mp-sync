@@ -333,7 +333,7 @@ POST /api/auth/login(用户名/密码,支持自动求解 PoW 验证码)
 naicha_sync:
   enabled: true
   api_base: http://localhost:3002
-  board: discussion        # 发帖分类 boardSlug,以奶茶圈后台分类标识为准
+  board: new-releases      # 发帖分类 boardSlug,默认 new-releases,以奶茶圈后台分类标识为准
   username: admin          # 奶茶圈管理员用户名/邮箱
   password: "******"       # 管理员密码
   cookie: ""               # 可选:bbs_session 的值或完整 Cookie,填了就不用账号密码
@@ -430,20 +430,38 @@ articles/
 
 ### 同步到奶茶圈论坛
 
-窗口里的「同步目标」输入框可以把同一批链接直接发布到任意论坛项目(默认 `http://localhost:3000`),走论坛的机器人接口 `POST /api/bot/posts`:
+主窗口只保留链接输入和「开始下载」「发帖设置…」「同步到论坛」按钮,论坛连接参数统一放在「发帖设置」弹框里。点「同步到论坛」时如果还没配置机器人,会自动弹出发帖设置。
 
-1. 填写「同步目标」地址和发帖分类(默认 `discussion`,以论坛后台的分类 `boardSlug` 为准)。目标地址可以自定义:支持 `http`/`https`,省略 `http://` 会自动补全,末尾斜杠会被去掉,例如 `localhost:3000`、`192.168.1.10:3000`、`https://bbs.example.com/naicha`;
-2. 填写「机器人账号」(论坛后台创建的机器人用户名、昵称或 ID)和 `BOT_API_SECRET`。密钥必须与论坛服务 `.env` 里的 `BOT_API_SECRET` 完全一致,请求时放在 `x-bot-secret` 请求头;
-3. 「标签」用逗号分隔,可选,「小红书」会自动带上;
-4. 点「同步到论坛」,程序会逐条抓取笔记正文并创建帖子,日志区显示每篇的结果。
+发帖设置弹框里的参数,对应论坛的机器人接口:
+
+```http
+POST {同步目标}/api/bot/posts
+Content-Type: application/json
+X-Bot-Secret: <BOT_API_SECRET>
+
+{
+  "bot": "quanxiaoer",
+  "boardSlug": "your-board",
+  "title": "采集标题",
+  "content": "采集正文",
+  "manualTags": ["新品"]
+}
+```
+
+1. **同步目标**:论坛地址,默认 `http://localhost:3000`。支持 `http`/`https`,省略 `http://` 会自动补全,末尾斜杠会被去掉,例如 `localhost:3000`、`192.168.1.10:3000`、`https://bbs.example.com/naicha`;
+2. **机器人账号 bot**:论坛后台创建的机器人用户名、昵称或 ID(`isBot=true` 且状态为启用);
+3. **BOT_API_SECRET**:必须与论坛服务 `.env` 里的 `BOT_API_SECRET` 完全一致,请求时放在 `X-Bot-Secret` 请求头;
+4. **分类 boardSlug**:默认 `new-releases`,以论坛后台的分类标识为准;
+5. **标签 manualTags**:逗号分隔,可选;会与笔记标签合并,并自动加上「小红书」;
+6. 点「同步到论坛」,程序逐条抓取笔记正文并创建帖子,日志区显示每篇结果。
 
 说明:
 
-- 论坛服务需要先在 `.env` 里配置 `BOT_API_SECRET` 并重启,否则接口返回 503;同时在论坛后台创建机器人账号(`isBot=true`),否则会提示机器人账号不存在;
+- `title` 和 `content` 由笔记自动生成,正文保留描述并去掉 `#话题[话题]#` 标记;最多 18 张配图;
 - 机器人接口不支持上传图片,配图会以小红书原图链接(Markdown 图片)写入正文;
-- 帖子正文保留笔记描述、去掉 `#话题[话题]#` 标记,最多 18 张配图;
+- 论坛服务需要先在 `.env` 里配置 `BOT_API_SECRET` 并重启,否则接口返回 503;机器人账号不存在时会提示「机器人账号不存在或已停用」;
 - 按 `xhs:<noteId>` 去重,重复点击只会显示「已同步过」;状态文件在 `%APPDATA%\xhs-downloader\naicha_state.json`;
-- 论坛设置和保存目录一起保存在 `%APPDATA%\xhs-downloader\config.json`。`BOT_API_SECRET` 是明文保存的,请注意不要把这个文件发给别人;
+- 发帖设置和保存目录一起保存在 `%APPDATA%\xhs-downloader\config.json`。`BOT_API_SECRET` 是明文保存的,请注意不要把这个文件发给别人;
 - 同步前请确保论坛服务已经启动。
 
 构建:

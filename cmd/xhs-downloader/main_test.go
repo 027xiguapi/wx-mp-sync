@@ -75,6 +75,52 @@ func TestNormalizeAPIBase(t *testing.T) {
 	}
 }
 
+func TestBuildForumSettings(t *testing.T) {
+	cfg, err := buildForumSettings(" localhost:3000/ ", " quanxiaoer ", " secret ", "", "奶茶, 探店，新品")
+	if err != nil {
+		t.Fatalf("buildForumSettings: %v", err)
+	}
+	if cfg.APIBase != "http://localhost:3000" {
+		t.Errorf("APIBase = %q", cfg.APIBase)
+	}
+	if cfg.Bot != "quanxiaoer" || cfg.BotSecret != "secret" {
+		t.Errorf("bot/secret = %+v", cfg)
+	}
+	if cfg.Board != defaultForumBoard {
+		t.Errorf("Board = %q", cfg.Board)
+	}
+	if len(cfg.Tags) != 3 || cfg.Tags[0] != "奶茶" || cfg.Tags[2] != "新品" {
+		t.Errorf("Tags = %v", cfg.Tags)
+	}
+
+	if _, err := buildForumSettings("ftp://example.com", "bot", "secret", "board", ""); err == nil {
+		t.Error("非 http(s) 地址应返回错误")
+	}
+}
+
+func TestNormalizeForumSettings(t *testing.T) {
+	cfg := normalizeForumSettings(forumSettings{})
+	if cfg.APIBase != defaultForumAPIBase || cfg.Board != defaultForumBoard {
+		t.Errorf("默认值 = %+v", cfg)
+	}
+}
+
+func TestForumSummaryHidesSecret(t *testing.T) {
+	app := &downloaderApp{forum: forumSettings{
+		APIBase:   "http://localhost:3000",
+		Bot:       "quanxiaoer",
+		BotSecret: "super-secret",
+		Board:     "general-discussion",
+	}}
+	summary := app.forumSummaryText()
+	if strings.Contains(summary, "super-secret") {
+		t.Fatalf("摘要不应包含密钥: %q", summary)
+	}
+	if !strings.Contains(summary, "quanxiaoer") || !strings.Contains(summary, "general-discussion") {
+		t.Errorf("摘要缺少机器人/分类: %q", summary)
+	}
+}
+
 func TestValidateAPIBase(t *testing.T) {
 	for _, raw := range []string{
 		"http://localhost:3000",

@@ -67,7 +67,7 @@ naicha_sync:
 
   # --- 小红书 → 奶茶圈(新版论坛,复用管理员登录)---
   xhs_enabled: true        # 默认 true;设为 false 可关闭小红书同步
-  board: discussion        # 发帖分类 boardSlug(以奶茶圈后台的分类标识为准)
+  board: new-releases      # 发帖分类 boardSlug(以奶茶圈后台的分类标识为准,默认 new-releases)
   username: ""             # 奶茶圈管理员用户名 / 邮箱
   password: ""             # 奶茶圈管理员密码
   cookie: ""               # 可选:浏览器里的 bbs_session 值或完整 Cookie;填写后跳过登录

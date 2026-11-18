@@ -103,7 +103,7 @@ func fakeNaichaServer(t *testing.T, hits *int32) *httptest.Server {
 			CoverPath string   `json:"coverPath"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
-		if body.BoardSlug != "discussion" || body.Title == "" || body.CoverPath == "" {
+		if body.BoardSlug != "new-releases" || body.Title == "" || body.CoverPath == "" {
 			t.Errorf("unexpected create payload: %+v", body)
 		}
 		if !strings.Contains(body.Content, "![图1](/uploads/posts/posts-1.png)") {
@@ -141,7 +141,7 @@ func TestPublishWithAdminLoginAndUpload(t *testing.T) {
 		APIBase:    server.URL,
 		Username:   "admin",
 		Password:   "secret",
-		Board:      "discussion",
+		Board:      "new-releases",
 		TimeoutSec: 10,
 		StatePath:  statePath,
 	}, testLogger())
@@ -198,7 +198,7 @@ func TestSyncDirUsesAdminLogin(t *testing.T) {
 		APIBase:    server.URL,
 		Username:   "admin",
 		Password:   "secret",
-		Board:      "discussion",
+		Board:      "new-releases",
 		Tags:       []string{"公众号"},
 		TimeoutSec: 10,
 		StatePath:  statePath,

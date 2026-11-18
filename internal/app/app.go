@@ -326,14 +326,11 @@ func isXHSMatch(pattern string) bool {
 	return strings.Contains(strings.ToLower(pattern), "xiaohongshu.com")
 }
 
-// naichaBoard 返回小红书同步使用的发帖分类,默认 discussion。
+// naichaBoard 返回小红书同步使用的发帖分类,默认 new-releases。
 func naichaBoard(cfg config.NaichaConfig) string {
 	board := strings.TrimSpace(cfg.Board)
 	if board == "" {
-		board = strings.TrimSpace(cfg.Category)
-	}
-	if board == "" {
-		board = "discussion"
+		board = "new-releases"
 	}
 	return board
 }

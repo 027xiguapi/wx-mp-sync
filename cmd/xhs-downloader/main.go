@@ -37,7 +37,7 @@ const (
 	perNoteSyncTimeout = 5 * time.Minute
 
 	defaultForumAPIBase = "http://localhost:3000"
-	defaultForumBoard   = "discussion"
+	defaultForumBoard   = "new-releases"
 )
 
 // appConfig 是独立下载器自己的配置,与主程序的 config.yaml 无关。
@@ -59,21 +59,18 @@ type forumSettings struct {
 type downloaderApp struct {
 	*walk.MainWindow
 
-	input     *walk.TextEdit
-	outputDir *walk.LineEdit
-	logBox    *walk.TextEdit
-	status    *walk.Label
-	progress  *walk.ProgressBar
-	startBtn  *walk.PushButton
-	syncBtn   *walk.PushButton
-	cancelBtn *walk.PushButton
+	input        *walk.TextEdit
+	outputDir    *walk.LineEdit
+	logBox       *walk.TextEdit
+	status       *walk.Label
+	progress     *walk.ProgressBar
+	startBtn     *walk.PushButton
+	syncBtn      *walk.PushButton
+	cancelBtn    *walk.PushButton
+	forumSummary *walk.Label
 
-	// 奶茶圈同步设置
-	forumBase      *walk.LineEdit
-	forumBot       *walk.LineEdit
-	forumBotSecret *walk.LineEdit
-	forumBoard     *walk.LineEdit
-	forumTags      *walk.LineEdit
+	// forum 是「发帖设置」弹框保存的论坛连接参数。
+	forum forumSettings
 
 	logger *zerolog.Logger
 
@@ -93,18 +90,14 @@ func main() {
 	if strings.TrimSpace(cfg.OutputDir) == "" {
 		cfg.OutputDir = defaultOutputDir()
 	}
-	// 旧配置里可能只写了 localhost:3000,统一补全协议后显示。
-	cfg.Forum.APIBase = normalizeAPIBase(cfg.Forum.APIBase)
-	if strings.TrimSpace(cfg.Forum.Board) == "" {
-		cfg.Forum.Board = defaultForumBoard
-	}
+	app.forum = normalizeForumSettings(cfg.Forum)
 	debugLog("config loaded: %s", cfg.OutputDir)
 
 	if err := (MainWindow{
 		AssignTo: &app.MainWindow,
 		Title:    appTitle,
-		MinSize:  Size{Width: 780, Height: 620},
-		Size:     Size{Width: 900, Height: 720},
+		MinSize:  Size{Width: 760, Height: 520},
+		Size:     Size{Width: 860, Height: 620},
 		Layout: VBox{
 			Margins: Margins{Left: 14, Top: 14, Right: 14, Bottom: 14},
 			Spacing: 8,
@@ -118,7 +111,7 @@ func main() {
 			TextEdit{
 				AssignTo:      &app.input,
 				VScroll:       true,
-				MinSize:       Size{Height: 90},
+				MinSize:       Size{Height: 110},
 				StretchFactor: 1,
 			},
 			Composite{
@@ -136,74 +129,19 @@ func main() {
 			Composite{
 				Layout: HBox{Spacing: 8},
 				Children: []Widget{
-					Label{Text: "同步目标:"},
-					LineEdit{
-						AssignTo:      &app.forumBase,
-						Text:          cfg.Forum.APIBase,
-						ToolTipText:   "同步目标项目地址,例如 http://localhost:3000;支持 http/https,可以省略 http://",
-						StretchFactor: 2,
-					},
-					Label{Text: "分类:"},
-					LineEdit{
-						AssignTo:      &app.forumBoard,
-						Text:          cfg.Forum.Board,
-						MinSize:       Size{Width: 130},
-						StretchFactor: 1,
-					},
-				},
-			},
-			Label{Text: "目标地址可自定义:可填写任意项目地址,支持 http/https,省略 http:// 时自动补全。"},
-			GroupBox{
-				Title: "机器人同步设置(BOT_API_SECRET)",
-				Layout: VBox{
-					Margins: Margins{Left: 10, Top: 8, Right: 10, Bottom: 8},
-					Spacing: 6,
-				},
-				Children: []Widget{
-					Composite{
-						Layout: HBox{Spacing: 8},
-						Children: []Widget{
-							Label{Text: "机器人账号:"},
-							LineEdit{
-								AssignTo:      &app.forumBot,
-								Text:          cfg.Forum.Bot,
-								ToolTipText:   "论坛后台创建的机器人用户名、昵称或 ID",
-								StretchFactor: 1,
-							},
-							Label{Text: "BOT_API_SECRET:"},
-							LineEdit{
-								AssignTo:      &app.forumBotSecret,
-								Text:          cfg.Forum.BotSecret,
-								PasswordMode:  true,
-								ToolTipText:   "与论坛服务 .env 里的 BOT_API_SECRET 保持一致",
-								StretchFactor: 1,
-							},
-						},
-					},
-					Composite{
-						Layout: HBox{Spacing: 8},
-						Children: []Widget{
-							Label{Text: "标签:"},
-							LineEdit{
-								AssignTo:      &app.forumTags,
-								Text:          strings.Join(cfg.Forum.Tags, ", "),
-								StretchFactor: 2,
-							},
-						},
-					},
-					Label{Text: "机器人账号填论坛后台创建的用户名/昵称/ID;BOT_API_SECRET 需与论坛服务 .env 一致。机器人接口不支持上传图片,配图会以小红书原图链接写入正文。"},
-				},
-			},
-			Composite{
-				Layout: HBox{Spacing: 8},
-				Children: []Widget{
 					PushButton{AssignTo: &app.startBtn, Text: "开始下载", OnClicked: app.startDownload},
+					PushButton{Text: "发帖设置…", OnClicked: func() { app.openForumSettings() }},
 					PushButton{AssignTo: &app.syncBtn, Text: "同步到论坛", OnClicked: app.startSync},
 					PushButton{AssignTo: &app.cancelBtn, Text: "取消", Enabled: false, OnClicked: app.cancelDownload},
 					PushButton{Text: "清空记录", OnClicked: app.clearLog},
 					HSpacer{},
 					Label{AssignTo: &app.status, Text: "就绪"},
 				},
+			},
+			Label{
+				AssignTo:  &app.forumSummary,
+				Text:      app.forumSummaryText(),
+				TextColor: walk.RGB(120, 120, 120),
 			},
 			ProgressBar{AssignTo: &app.progress, MaxValue: 100},
 			TextEdit{
@@ -220,6 +158,7 @@ func main() {
 	}
 
 	debugLog("window created")
+	app.updateForumSummary()
 	_ = app.input.SetFocus()
 	app.Run()
 	debugLog("run returned")
@@ -362,20 +301,27 @@ func (a *downloaderApp) startSync() {
 		return
 	}
 
-	cfg := a.forumConfig()
+	cfg := normalizeForumSettings(a.forum)
+	if cfg.Bot == "" || cfg.BotSecret == "" {
+		// 首次同步或设置不完整时直接弹出发帖设置,保存后继续。
+		if !a.openForumSettings() {
+			return
+		}
+		cfg = normalizeForumSettings(a.forum)
+	}
 	if err := validateAPIBase(cfg.APIBase); err != nil {
-		walk.MsgBox(a.MainWindow, appTitle, "同步目标地址无效:\n"+err.Error(), walk.MsgBoxIconWarning)
+		walk.MsgBox(a.MainWindow, appTitle,
+			"同步目标地址无效:\n"+err.Error()+"\n\n请点「发帖设置」修改。",
+			walk.MsgBoxIconWarning)
 		return
 	}
 	if cfg.Bot == "" || cfg.BotSecret == "" {
 		walk.MsgBox(a.MainWindow, appTitle,
-			"同步前请填写机器人账号和 BOT_API_SECRET。\n\n"+
-				"BOT_API_SECRET 是论坛服务 .env 里配置的值;机器人账号需先在论坛后台创建。",
+			"机器人账号和 BOT_API_SECRET 不能为空,请点「发帖设置」填写。",
 			walk.MsgBoxIconWarning)
 		return
 	}
-	// 把补全后的地址回填到输入框,让用户看到实际使用的地址。
-	_ = a.forumBase.SetText(cfg.APIBase)
+	a.forum = cfg
 	a.saveConfig()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -471,19 +417,133 @@ func (a *downloaderApp) startSync() {
 	}()
 }
 
-// forumConfig 从界面读取奶茶圈同步设置,并补上默认值。
-func (a *downloaderApp) forumConfig() forumSettings {
-	cfg := forumSettings{
-		APIBase:   normalizeAPIBase(a.forumBase.Text()),
-		Bot:       strings.TrimSpace(a.forumBot.Text()),
-		BotSecret: strings.TrimSpace(a.forumBotSecret.Text()),
-		Board:     strings.TrimSpace(a.forumBoard.Text()),
-		Tags:      parseTagList(a.forumTags.Text()),
-	}
+// normalizeForumSettings 补齐论坛设置的默认值并去掉首尾空白。
+func normalizeForumSettings(cfg forumSettings) forumSettings {
+	cfg.APIBase = normalizeAPIBase(cfg.APIBase)
+	cfg.Bot = strings.TrimSpace(cfg.Bot)
+	cfg.BotSecret = strings.TrimSpace(cfg.BotSecret)
+	cfg.Board = strings.TrimSpace(cfg.Board)
 	if cfg.Board == "" {
 		cfg.Board = defaultForumBoard
 	}
+	cfg.Tags = parseTagList(strings.Join(cfg.Tags, ","))
 	return cfg
+}
+
+// buildForumSettings 校验弹框里填写的参数,并生成可保存的论坛设置。
+func buildForumSettings(apiBase, bot, secret, board, tags string) (forumSettings, error) {
+	cfg := normalizeForumSettings(forumSettings{
+		APIBase:   apiBase,
+		Bot:       bot,
+		BotSecret: secret,
+		Board:     board,
+		Tags:      parseTagList(tags),
+	})
+	if err := validateAPIBase(cfg.APIBase); err != nil {
+		return cfg, err
+	}
+	return cfg, nil
+}
+
+// openForumSettings 弹出发帖设置对话框;保存成功返回 true。
+// 弹框里的参数对应论坛机器人接口:
+// POST /api/bot/posts + X-Bot-Secret,请求体 bot/boardSlug/title/content/manualTags。
+func (a *downloaderApp) openForumSettings() bool {
+	current := normalizeForumSettings(a.forum)
+	var (
+		dlg       *walk.Dialog
+		apiBase   *walk.LineEdit
+		bot       *walk.LineEdit
+		secret    *walk.LineEdit
+		board     *walk.LineEdit
+		tags      *walk.LineEdit
+		saveBtn   *walk.PushButton
+		cancelBtn *walk.PushButton
+	)
+	saved := false
+
+	save := func() {
+		next, err := buildForumSettings(apiBase.Text(), bot.Text(), secret.Text(), board.Text(), tags.Text())
+		if err != nil {
+			walk.MsgBox(dlg, appTitle, "发帖设置无效:\n"+err.Error(), walk.MsgBoxIconWarning)
+			return
+		}
+		a.forum = next
+		a.saveConfig()
+		a.updateForumSummary()
+		saved = true
+		dlg.Accept()
+	}
+	cancel := func() { dlg.Cancel() }
+
+	if err := (Dialog{
+		AssignTo:      &dlg,
+		Title:         "发帖设置",
+		MinSize:       Size{Width: 600, Height: 340},
+		Size:          Size{Width: 660, Height: 360},
+		DefaultButton: &saveBtn,
+		CancelButton:  &cancelBtn,
+		Layout: VBox{
+			Margins: Margins{Left: 14, Top: 14, Right: 14, Bottom: 14},
+			Spacing: 8,
+		},
+		Children: []Widget{
+			Label{Text: "同步目标地址(例如 http://localhost:3000,可省略 http://):"},
+			LineEdit{AssignTo: &apiBase, Text: current.APIBase, StretchFactor: 1},
+			Label{Text: "机器人账号 bot(论坛后台创建的用户名/昵称/ID):"},
+			LineEdit{AssignTo: &bot, Text: current.Bot, StretchFactor: 1},
+			Label{Text: "BOT_API_SECRET(与论坛服务 .env 里的值一致):"},
+			LineEdit{AssignTo: &secret, Text: current.BotSecret, PasswordMode: true, StretchFactor: 1},
+			Composite{
+				Layout: HBox{Spacing: 8},
+				Children: []Widget{
+					Label{Text: "分类 boardSlug:"},
+					LineEdit{AssignTo: &board, Text: current.Board, StretchFactor: 1},
+				},
+			},
+			Label{Text: "标签 manualTags(逗号分隔,可选;会与笔记标签合并):"},
+			LineEdit{AssignTo: &tags, Text: strings.Join(current.Tags, ", "), StretchFactor: 1},
+			Label{
+				Text:      "接口:POST /api/bot/posts(X-Bot-Secret);标题/正文自动生成。",
+				TextColor: walk.RGB(120, 120, 120),
+			},
+			Composite{
+				Layout: HBox{Spacing: 8},
+				Children: []Widget{
+					HSpacer{},
+					PushButton{AssignTo: &saveBtn, Text: "保存", OnClicked: save},
+					PushButton{AssignTo: &cancelBtn, Text: "取消", OnClicked: cancel},
+				},
+			},
+		},
+	}).Create(a.MainWindow); err != nil {
+		walk.MsgBox(a.MainWindow, appTitle, "打开发帖设置失败:\n"+err.Error(), walk.MsgBoxIconError)
+		return false
+	}
+
+	dlg.Run()
+	return saved
+}
+
+// forumSummaryText 返回主窗口里显示的发帖设置摘要(不包含密钥)。
+func (a *downloaderApp) forumSummaryText() string {
+	cfg := normalizeForumSettings(a.forum)
+	if cfg.Bot == "" || cfg.BotSecret == "" {
+		return "发帖设置未完成:点「发帖设置」填写同步目标、机器人账号和 BOT_API_SECRET。"
+	}
+	summary := fmt.Sprintf("发帖目标: %s · 机器人: %s · 分类: %s", cfg.APIBase, cfg.Bot, cfg.Board)
+	if len(cfg.Tags) > 0 {
+		summary += " · 标签: " + strings.Join(cfg.Tags, ", ")
+	}
+	return summary
+}
+
+// updateForumSummary 刷新主窗口里的发帖设置摘要。
+func (a *downloaderApp) updateForumSummary() {
+	if a.forumSummary == nil {
+		return
+	}
+	_ = a.forumSummary.SetText(a.forumSummaryText())
 }
 
 // normalizeAPIBase 规范化同步目标地址:补全 http:// 并去掉末尾斜杠。
@@ -520,7 +580,7 @@ func validateAPIBase(raw string) error {
 func (a *downloaderApp) saveConfig() {
 	saveConfig(appConfig{
 		OutputDir: strings.TrimSpace(a.outputDir.Text()),
-		Forum:     a.forumConfig(),
+		Forum:     normalizeForumSettings(a.forum),
 	})
 }
 
